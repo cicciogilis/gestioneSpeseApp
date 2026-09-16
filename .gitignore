@@ -1,0 +1,32 @@
+# Flutter / Dart
+.dart_tool/
+build/
+.flutter-plugins-dependencies
+.flutter-plugins
+.pub/
+.pub-cache/
+.pubspec.lock
+.pubspec.lock.json
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# App
+*.iml
+.metadata
+
+# Env / secrets
+.env
+.env.local
+*.pem
+*.key
+*.jks
+*.keystore
+
+# Context agent files
+.context/
+.kilocode/
+.kilo/
