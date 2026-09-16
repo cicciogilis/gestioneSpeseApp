@@ -3,11 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class LLMService {
-  static const String hardcodedApiKey = 'REDACTED';
   final String? _apiKey;
   static const _url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
-  LLMService({String? apiKey}) : _apiKey = apiKey ?? hardcodedApiKey;
+  LLMService({String? apiKey}) : _apiKey = apiKey;
 
   bool get isConfigured => _apiKey != null && _apiKey.isNotEmpty;
 
