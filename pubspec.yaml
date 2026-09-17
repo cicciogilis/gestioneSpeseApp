@@ -38,7 +38,7 @@ dependencies:
   go_router: ^18.0.1
   google_mlkit_text_recognition: ^0.17.1
   fl_chart: ^1.2.0
-  intl: ^0.20.3
+  intl: ^0.20.2
   image_picker: ^1.2.3
   path_provider: ^2.1.6
   share_plus: ^13.3.0
