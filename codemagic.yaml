@@ -1,0 +1,34 @@
+workflows:
+  spesapp-debug:
+    name: SpesApp Debug APK
+    max_build_duration: 30
+    instance: macos-14
+    environment:
+      groups:
+        - spesapp-secrets
+      vars:
+        LLM_API_KEY: $LLM_API_KEY
+    triggering:
+      events:
+        - push
+      branch:
+        - master
+    scripts:
+      - name: Install dependencies
+        script: |
+          flutter pub get
+      - name: Build debug APK
+        script: |
+          flutter build apk \
+            --dart-define=LLM_API_KEY="$LLM_API_KEY" \
+            --debug
+    artifacts:
+      - build/app/outputs/flutter-apk/app-debug.apk
+    publishing:
+      email:
+        recipients:
+          - francescogiliberto03@gmail.com
+        subject: "SpesApp debug APK ready"
+        body: |
+          Your debug APK for ${{ github.workflow }} is ready.
+          Download link: ${{ github.artifacts_url }}
