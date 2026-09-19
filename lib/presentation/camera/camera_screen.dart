@@ -17,7 +17,9 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   final ImagePicker _picker = ImagePicker();
   final MLKitService _mlKitService = MLKitService();
-  late final LLMService _llmService = LLMService();
+  late final LLMService _llmService = LLMService(
+    apiKey: String.fromEnvironment('LLM_API_KEY'),
+  );
 
   String? _imagePath;
   String? _recognizedText;
