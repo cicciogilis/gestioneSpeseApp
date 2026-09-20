@@ -19,7 +19,7 @@ final receiptRecognitionServiceProvider = Provider<ReceiptRecognitionService>((r
 });
 
 final expenseDescriptionServiceProvider = Provider<ExpenseDescriptionService>((ref) {
-  const apiKey = String.fromEnvironment('GEMINI_API_KEY');
+  const apiKey = String.fromEnvironment('LLM_API_KEY');
   return ExpenseDescriptionService(apiKey: apiKey);
 });
 
