@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/budget_provider.dart';
+import '../../core/providers/selected_period_provider.dart';
+import '../../widgets/period_selector_bottom_sheet.dart';
 import '../../domain/models/transaction.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -20,7 +21,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SpesApp', style: TextStyle(fontWeight: FontWeight.bold)),
+        leading: Consumer(
+          builder: (context, ref, _) {
+            final period = ref.watch(selectedPeriodProvider);
+            return GestureDetector(
+              onTap: () => openPeriodSelector(
+                context: context,
+                ref: ref,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'SpesApp',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          period.toString(),
+                          style: const TextStyle(fontSize: 13, color: Colors.white70),
+                        ),
+                        const Icon(Icons.arrow_drop_down, size: 18, color: Colors.white70),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: () {
             ref.read(transactionsProvider.notifier).loadTransactions();
@@ -31,46 +65,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Errore: $err')),
         data: (transactions) => _buildDashboard(context, ref, transactions),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Spese'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Grafici'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Impostazioni'),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Show the modal bottom sheet for adding transaction
-          showModalBottomSheet(
-            context: context,
-            builder: (context) => SafeArea(
-              child: Wrap(
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.edit_note),
-                    title: const Text('Inserimento Manuale'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.push('/add');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.camera_alt),
-                    title: const Text('Scansiona Scontrino'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.push('/camera');
-                    },
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -87,8 +81,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       }
     }
 
-    double balance = totalIncomes - totalExpenses;
     final budget = ref.watch(budgetProvider);
+    double balance = budget.initialBalance + totalIncomes - totalExpenses;
     double budgetPct = (totalExpenses / budget.globalLimit).clamp(0.0, 1.0);
 
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');

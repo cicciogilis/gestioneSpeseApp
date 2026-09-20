@@ -3,10 +3,15 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/transaction_repository.dart';
+import '../../data/services/receipt_service.dart';
 import '../../domain/models/transaction.dart';
 
 final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
   return TransactionRepository();
+});
+
+final receiptServiceProvider = Provider<ReceiptService>((ref) {
+  return ReceiptService();
 });
 
 class TransactionListNotifier extends AsyncNotifier<List<AppTransaction>> {
@@ -25,6 +30,16 @@ class TransactionListNotifier extends AsyncNotifier<List<AppTransaction>> {
 
   Future<void> addTransaction(AppTransaction tx) async {
     await _repository.addTransaction(tx);
+    await loadTransactions();
+  }
+
+  Future<void> deleteTransaction(String id) async {
+    await _repository.deleteTransaction(id);
+    await loadTransactions();
+  }
+
+  Future<void> deleteFutureRecurrences(String ricorrenzaId) async {
+    await _repository.deleteFutureRecurrences(ricorrenzaId);
     await loadTransactions();
   }
 }

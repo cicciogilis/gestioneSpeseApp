@@ -1,5 +1,30 @@
+import 'package:flutter/material.dart';
+
 enum TransactionType { income, expense }
-enum PaymentMethod { cash, card, transfer, other }
+
+enum MetodoPagamento { contanti, carta, bonifico, paypal, satispay }
+
+extension MetodoPagamentoLabel on MetodoPagamento {
+  String get label {
+    switch (this) {
+      case MetodoPagamento.contanti:  return 'Contanti';
+      case MetodoPagamento.carta:     return 'Carta';
+      case MetodoPagamento.bonifico:  return 'Bonifico';
+      case MetodoPagamento.paypal:    return 'PayPal';
+      case MetodoPagamento.satispay:  return 'SatisPay';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case MetodoPagamento.contanti:  return Icons.money;
+      case MetodoPagamento.carta:     return Icons.credit_card;
+      case MetodoPagamento.bonifico:  return Icons.account_balance;
+      case MetodoPagamento.paypal:    return Icons.language;
+      case MetodoPagamento.satispay:  return Icons.smartphone;
+    }
+  }
+}
 enum Recurrence { none, daily, weekly, monthly, yearly }
 
 extension RecurrenceX on Recurrence {
@@ -36,11 +61,12 @@ class AppTransaction {
   final double amount;
   final TransactionType type;
   final String categoryId;
-  final PaymentMethod method;
+  final MetodoPagamento method;
   final DateTime date;
   final String? description;
   final String? aiSummary;
   final Recurrence recurrence;
+  final String? ricorrenzaId;
 
   const AppTransaction({
     this.id,
@@ -52,6 +78,7 @@ class AppTransaction {
     this.description,
     this.aiSummary,
     this.recurrence = Recurrence.none,
+    this.ricorrenzaId,
   });
 
   Map<String, dynamic> toMap() {
@@ -65,6 +92,7 @@ class AppTransaction {
       'description': description,
       'ai_summary': aiSummary,
       'recurrence': recurrence.name.toUpperCase(),
+      'ricorrenza_id': ricorrenzaId,
     };
   }
 
@@ -77,10 +105,7 @@ class AppTransaction {
         orElse: () => TransactionType.expense,
       ),
       categoryId: map['category_id'] ?? '',
-      method: PaymentMethod.values.firstWhere(
-        (e) => e.name.toUpperCase() == map['method'],
-        orElse: () => PaymentMethod.other,
-      ),
+      method: _parseMethod(map['method']),
       date: DateTime.tryParse(map['date'] ?? '') ?? DateTime.now(),
       description: map['description'],
       aiSummary: map['ai_summary'],
@@ -88,6 +113,29 @@ class AppTransaction {
         (e) => e.name.toUpperCase() == map['recurrence'],
         orElse: () => Recurrence.none,
       ),
+      ricorrenzaId: map['ricorrenza_id'],
     );
+  }
+
+  static MetodoPagamento _parseMethod(dynamic value) {
+    if (value == null) return MetodoPagamento.contanti;
+    final upper = (value as String).toUpperCase();
+    switch (upper) {
+      case 'CONTANTI':
+      case 'CASH':
+        return MetodoPagamento.contanti;
+      case 'CARTA':
+      case 'CARD':
+        return MetodoPagamento.carta;
+      case 'BONIFICO':
+      case 'TRANSFER':
+        return MetodoPagamento.bonifico;
+      case 'PAYPAL':
+        return MetodoPagamento.paypal;
+      case 'SATISPAY':
+        return MetodoPagamento.satispay;
+      default:
+        return MetodoPagamento.contanti;
+    }
   }
 }

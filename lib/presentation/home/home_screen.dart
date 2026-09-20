@@ -39,21 +39,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        backgroundColor: const Color(0xFF1A1A1A),
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white54,
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.list),
+            icon: Icon(Icons.list_outlined),
+            activeIcon: Icon(Icons.list),
             label: 'Transazioni',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
+            icon: Icon(Icons.bar_chart_outlined),
+            activeIcon: Icon(Icons.bar_chart),
             label: 'Grafici',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
             label: 'Impostazioni',
           ),
         ],
@@ -81,6 +90,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           onTap: () {
                             Navigator.pop(context);
                             context.push('/camera');
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.receipt_long),
+                          title: const Text('Visualizza Scontrini Salvati'),
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/receipts');
                           },
                         ),
                       ],

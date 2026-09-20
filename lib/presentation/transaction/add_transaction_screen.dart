@@ -20,7 +20,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _descCtrl = TextEditingController();
 
   TransactionType _selectedType = TransactionType.expense;
-  PaymentMethod _selectedMethod = PaymentMethod.cash;
+  MetodoPagamento _selectedMethod = MetodoPagamento.contanti;
   Recurrence _selectedRecurrence = Recurrence.none;
   DateTime _selectedDate = DateTime.now();
   String? _selectedCategoryId;
@@ -160,14 +160,19 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               const SizedBox(height: 16),
               const Text('Metodo di Pagamento', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              SegmentedButton<PaymentMethod>(
-                segments: const [
-                  ButtonSegment(value: PaymentMethod.cash, label: Text('Contanti')),
-                  ButtonSegment(value: PaymentMethod.card, label: Text('Carta')),
-                  ButtonSegment(value: PaymentMethod.transfer, label: Text('Bonifico')),
-                ],
-                selected: {_selectedMethod},
-                onSelectionChanged: (set) => setState(() => _selectedMethod = set.first),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SegmentedButton<MetodoPagamento>(
+                  segments: const [
+                    ButtonSegment(value: MetodoPagamento.contanti, label: Text('Contanti')),
+                    ButtonSegment(value: MetodoPagamento.carta, label: Text('Carta')),
+                    ButtonSegment(value: MetodoPagamento.bonifico, label: Text('Bonifico')),
+                    ButtonSegment(value: MetodoPagamento.paypal, label: Text('PayPal')),
+                    ButtonSegment(value: MetodoPagamento.satispay, label: Text('SatisPay')),
+                  ],
+                  selected: {_selectedMethod},
+                  onSelectionChanged: (set) => setState(() => _selectedMethod = set.first),
+                ),
               ),
               const SizedBox(height: 24),
               const Text('Ricorrenza', style: TextStyle(fontWeight: FontWeight.bold)),

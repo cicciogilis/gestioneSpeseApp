@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../domain/models/template_ricorrente.dart';
 import '../../domain/models/transaction.dart';
 
 class TransactionRepository {
@@ -9,6 +10,7 @@ class TransactionRepository {
   static const String _legacyOfflineQueueKey = 'offline_transactions';
   static const String _legacyReadCacheKey = 'cached_transactions';
   static const String _recurrenceLedgerKey = 'recurrence_ledger';
+  static const String _templatesKey = 'templates_ricorrenti';
   static int _idCounter = 0;
 
   Future<List<AppTransaction>> getTransactions() async {
@@ -22,6 +24,23 @@ class TransactionRepository {
   Future<void> addTransaction(AppTransaction tx) async {
     final prefs = await SharedPreferences.getInstance();
     final transactions = await _loadTransactions(prefs);
+    
+    // If transaction has a recurrence, create/update template
+    if (tx.recurrence.isRecurring) {
+      await _saveTemplate(TemplateRicorrente(
+        id: tx.ricorrenzaId,
+        amount: tx.amount,
+        type: tx.type,
+        categoryId: tx.categoryId,
+        method: tx.method,
+        description: tx.description,
+        recurrence: tx.recurrence,
+        dataInizio: tx.date,
+        dataProssimaOccorrenza: tx.recurrence.nextAfter(tx.date),
+        attivo: true,
+      ), prefs);
+    }
+    
     final stored = tx.id == null
         ? AppTransaction(
             id: _newId(),
@@ -33,6 +52,7 @@ class TransactionRepository {
             description: tx.description,
             aiSummary: tx.aiSummary,
             recurrence: tx.recurrence,
+            ricorrenzaId: tx.ricorrenzaId,
           )
         : tx;
     transactions.add(stored);
@@ -75,6 +95,128 @@ class TransactionRepository {
       byKey.putIfAbsent(key, () => tx);
     }
     return byKey.values.toList();
+  }
+
+  Future<void> _saveTemplate(TemplateRicorrente template, SharedPreferences prefs) async {
+    final templates = await _loadTemplates(prefs);
+    final existingIndex = templates.indexWhere((t) => t.id == template.id);
+    
+    final templateToSave = template.id == null
+        ? TemplateRicorrente(
+            id: _newId(),
+            amount: template.amount,
+            type: template.type,
+            categoryId: template.categoryId,
+            method: template.method,
+            description: template.description,
+            recurrence: template.recurrence,
+            dataInizio: template.dataInizio,
+            dataProssimaOccorrenza: template.dataProssimaOccorrenza,
+            attivo: template.attivo,
+          )
+        : template;
+    
+    if (existingIndex >= 0) {
+      templates[existingIndex] = templateToSave;
+    } else {
+      templates.add(templateToSave);
+    }
+    
+    await prefs.setStringList(
+      _templatesKey,
+      templates.map((t) => jsonEncode(t.toMap())).toList(),
+    );
+  }
+
+  Future<List<TemplateRicorrente>> _loadTemplates(SharedPreferences prefs) async {
+    final encoded = prefs.getStringList(_templatesKey);
+    if (encoded != null) {
+      return encoded
+          .map((e) => TemplateRicorrente.fromMap(jsonDecode(e) as Map<String, dynamic>))
+          .toList();
+    }
+    return <TemplateRicorrente>[];
+  }
+
+  Future<List<TemplateRicorrente>> getTemplates() async {
+    final prefs = await SharedPreferences.getInstance();
+    return _loadTemplates(prefs);
+  }
+
+  Future<void> processaRicorrenzePendenti() async {
+    final prefs = await SharedPreferences.getInstance();
+    final templates = await _loadTemplates(prefs);
+    final transactions = await _loadTransactions(prefs);
+    final ledger = prefs.getStringList(_recurrenceLedgerKey) ?? [];
+    final ledgerMap = <String, String>{
+      for (final item in ledger)
+        if (item.contains('::')) item.split('::').first: item.split('::').last,
+    };
+    final newlyGenerated = <AppTransaction>[];
+    bool hasUpdates = false;
+
+    for (final template in templates) {
+      if (!template.attivo || !template.recurrence.isRecurring) {
+        continue;
+      }
+
+      DateTime cursor = ledgerMap[template.id] != null
+          ? DateTime.tryParse(ledgerMap[template.id!]!) ?? template.dataProssimaOccorrenza
+          : template.dataProssimaOccorrenza;
+      
+      var guard = 0;
+      while (guard < 36) {
+        cursor = template.recurrence.nextAfter(cursor);
+        if (cursor.isAfter(DateTime.now())) {
+          break;
+        }
+        
+        newlyGenerated.add(
+          AppTransaction(
+            id: _newId(),
+            amount: template.amount,
+            type: template.type,
+            categoryId: template.categoryId,
+            method: template.method,
+            date: cursor,
+            description: template.description,
+            recurrence: Recurrence.none,
+            ricorrenzaId: template.id,
+          ),
+        );
+        ledgerMap[template.id!] = cursor.toIso8601String();
+        hasUpdates = true;
+        guard++;
+      }
+      
+      if (hasUpdates) {
+        final updatedTemplate = TemplateRicorrente(
+          id: template.id,
+          amount: template.amount,
+          type: template.type,
+          categoryId: template.categoryId,
+          method: template.method,
+          description: template.description,
+          recurrence: template.recurrence,
+          dataInizio: template.dataInizio,
+          dataProssimaOccorrenza: cursor,
+          attivo: template.attivo,
+        );
+        await _saveTemplate(updatedTemplate, prefs);
+      }
+    }
+
+    if (newlyGenerated.isNotEmpty) {
+      final allTransactions = [...transactions, ...newlyGenerated];
+      await _saveTransactions(prefs, allTransactions);
+    }
+    
+    if (hasUpdates) {
+      await prefs.setStringList(
+        _recurrenceLedgerKey,
+        ledgerMap.entries.map((e) => '${e.key}::${e.value}').toList(),
+      );
+    }
   }
 
   Future<void> _saveTransactions(
@@ -141,6 +283,62 @@ class TransactionRepository {
       ledgerMap.entries.map((e) => '${e.key}::${e.value}').toList(),
     );
     return updated;
+  }
+
+  Future<List<int>> getAvailableYears() async {
+    final transactions = await getTransactions();
+    if (transactions.isEmpty) {
+      return [DateTime.now().year];
+    }
+    final years = transactions
+        .map((tx) => tx.date.year)
+        .toSet()
+        .toList()
+      ..sort();
+    final now = DateTime.now();
+    if (!years.contains(now.year)) {
+      years.add(now.year);
+      years.sort();
+    }
+    return years;
+  }
+
+  Future<void> deleteTransaction(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final transactions = await _loadTransactions(prefs);
+    final filtered = transactions.where((tx) => tx.id != id).toList();
+    await _saveTransactions(prefs, filtered);
+  }
+
+  Future<void> deleteFutureRecurrences(String ricorrenzaId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final transactions = await _loadTransactions(prefs);
+    final filtered = transactions.where((tx) => tx.ricorrenzaId != ricorrenzaId).toList();
+    await _saveTransactions(prefs, filtered);
+    
+    // Also deactivate the template
+    final templates = await _loadTemplates(prefs);
+    final idx = templates.indexWhere((t) => t.id == ricorrenzaId);
+    if (idx >= 0) {
+      final template = templates[idx];
+      final updated = TemplateRicorrente(
+        id: template.id,
+        amount: template.amount,
+        type: template.type,
+        categoryId: template.categoryId,
+        method: template.method,
+        description: template.description,
+        recurrence: template.recurrence,
+        dataInizio: template.dataInizio,
+        dataProssimaOccorrenza: template.dataProssimaOccorrenza,
+        attivo: false,
+      );
+      templates[idx] = updated;
+      await prefs.setStringList(
+        _templatesKey,
+        templates.map((t) => jsonEncode(t.toMap())).toList(),
+      );
+    }
   }
 
   static String _newId() {

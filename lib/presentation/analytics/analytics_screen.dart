@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/seed_categories.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/providers/selected_period_provider.dart';
 import '../../domain/models/category.dart';
 import '../../domain/models/transaction.dart';
 
@@ -49,7 +50,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         seedCategories.firstWhere((c) => c.id == categoryId, orElse: () => _fallbackCategory).color);
   }
 
-  Widget _buildAnalytics(BuildContext context, List<AppTransaction> transactions) {
+  Widget _buildAnalytics(BuildContext context, List<AppTransaction> allTransactions) {
+    final selectedPeriod = ref.watch(selectedPeriodProvider);
+    final periodLabel = selectedPeriod.toString();
+    
+    // Filter transactions by selected period
+    final transactions = allTransactions.where((t) {
+      final monthKey = DateFormat('yyyy-MM').format(t.date);
+      final periodKey = '${selectedPeriod.year}-${selectedPeriod.month.toString().padLeft(2, '0')}';
+      return monthKey == periodKey;
+    }).toList();
+    
     double totalIncome = 0.0;
     double totalExpense = 0.0;
     for (var t in transactions) {
@@ -59,14 +70,19 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
 
     final expensesByCategory = <String, double>{};
-    final monthlyExpenses = <String, double>{};
+    final monthlyExpensesByCategory = <String, Map<String, double>>{};
     final monthlyBalance = <String, double>{};
     final monthlyData = <String>[];
     for (final t in transactions) {
       if (t.type != TransactionType.expense) continue;
       expensesByCategory.update(t.categoryId, (v) => v + t.amount, ifAbsent: () => t.amount);
+      
+      // Build monthly expenses by category for stacked bar chart
       final monthKey = DateFormat('yyyy-MM').format(t.date);
-      monthlyExpenses.update(monthKey, (v) => v + t.amount, ifAbsent: () => t.amount);
+      monthlyExpensesByCategory
+          .putIfAbsent(monthKey, () => <String, double>{})
+          .update(t.categoryId, (v) => v + t.amount, ifAbsent: () => t.amount);
+      
       monthlyBalance.update(
         monthKey,
         (v) => v - t.amount,
@@ -79,8 +95,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       monthlyBalance.update(monthKey, (v) => v + t.amount, ifAbsent: () => t.amount);
     }
     monthlyData.addAll(monthlyBalance.keys.toList()..sort());
-
-    final sortedMonths = monthlyExpenses.keys.toList()..sort();
+    final sortedMonths = monthlyExpensesByCategory.keys.toList()..sort();
     final pieSections = expensesByCategory.entries.map((e) {
       return PieChartSectionData(
         value: e.value,
@@ -94,7 +109,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        const Text('Riassunto', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text('Riassunto — $periodLabel', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Card(
           child: Padding(
@@ -185,7 +200,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         const SizedBox(height: 24),
         const Text('Trend Spese Mensile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
-        if (sortedMonths.isEmpty)
+        if (monthlyExpensesByCategory.isEmpty)
           Container(
             height: 200,
             color: Colors.grey.shade200,
@@ -193,56 +208,101 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             child: const Text('Nessun dato disponibile'),
           )
         else
-          SizedBox(
-            height: 220,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: (monthlyExpenses.values.reduce((a, b) => a > b ? a : b) * 1.1).clamp(1, double.infinity),
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
-                      '${sortedMonths[groupIndex]}\n${fmt.format(rod.toY)}',
-                      const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final idx = value.toInt();
-                        if (idx < 0 || idx >= sortedMonths.length) return const Text('');
-                        final month = sortedMonths[idx];
-                        final label = DateFormat('MMM').format(DateTime.parse('$month-01'));
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(label, style: const TextStyle(fontSize: 10)),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                barGroups: sortedMonths.asMap().entries.map((e) {
-                  return BarChartGroupData(
-                    x: e.key,
-                    barRods: [
-                      BarChartRodData(
-                        toY: monthlyExpenses[e.value]!,
-                        color: Colors.redAccent,
-                        width: 18,
-                        borderRadius: BorderRadius.circular(4),
+          Column(
+            children: [
+              // Legend
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: expensesByCategory.keys.map((catId) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(color: _categoryColor(catId), shape: BoxShape.circle),
                       ),
+                      const SizedBox(width: 4),
+                      Text(_categoryName(catId), style: const TextStyle(fontSize: 11)),
                     ],
                   );
                 }).toList(),
               ),
-            ),
-          ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 220,
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: (monthlyExpensesByCategory.values
+                        .map((cats) => cats.values.fold(0.0, (a, b) => a + b))
+                        .reduce((a, b) => a > b ? a : b) * 1.1)
+                        .clamp(1, double.infinity),
+                    barTouchData: BarTouchData(
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          final month = sortedMonths[groupIndex];
+                          return BarTooltipItem(
+                            '$month\n${fmt.format(rod.toY)}',
+                            const TextStyle(color: Colors.white),
+                          );
+                        },
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            final idx = value.toInt();
+                            if (idx < 0 || idx >= sortedMonths.length) return const Text('');
+                            final month = sortedMonths[idx];
+                            final label = DateFormat('MMM').format(DateTime.parse('$month-01'));
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(label, style: const TextStyle(fontSize: 10)),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    barGroups: sortedMonths.asMap().entries.map((e) {
+                      final monthKey = e.value;
+                      final cats = monthlyExpensesByCategory[monthKey]!;
+                      final sortedCats = cats.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+                      
+                      final rodStackItems = <BarChartRodStackItem>[];
+                      double currentY = 0;
+                      for (final catEntry in sortedCats) {
+                        rodStackItems.add(BarChartRodStackItem(
+                          currentY,
+                          currentY + catEntry.value,
+                          _categoryColor(catEntry.key),
+                        ));
+                        currentY += catEntry.value;
+                      }
+                      
+                      return BarChartGroupData(
+                        x: e.key,
+                        barRods: [
+                          BarChartRodData(
+                            toY: cats.values.fold(0.0, (a, b) => a + b),
+                            width: 18,
+                            borderRadius: BorderRadius.circular(4),
+                            rodStackItems: rodStackItems,
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ], // <-- CORRETTO: Era una parentesi tonda )
+          ), // <-- CORRETTO: Rimosso ": const SizedBox.shrink()"
         const SizedBox(height: 24),
         const Text('Trend Saldo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),

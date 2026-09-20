@@ -20,7 +20,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   late final TextEditingController _limitCtrl;
   late final TextEditingController _goalCtrl;
-  late final TextEditingController _balanceCtrl;
+  late final TextEditingController _initialBalanceCtrl;
 
   @override
   void initState() {
@@ -28,14 +28,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final budget = ref.read(budgetProvider);
     _limitCtrl = TextEditingController(text: budget.globalLimit.toStringAsFixed(0));
     _goalCtrl = TextEditingController(text: budget.savingGoal.toStringAsFixed(0));
-    _balanceCtrl = TextEditingController(text: budget.initialBalance.toStringAsFixed(2));
+    _initialBalanceCtrl = TextEditingController(text: budget.initialBalance.toStringAsFixed(0));
   }
 
   @override
   void dispose() {
     _limitCtrl.dispose();
     _goalCtrl.dispose();
-    _balanceCtrl.dispose();
+    _initialBalanceCtrl.dispose();
     super.dispose();
   }
 
@@ -44,7 +44,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     const fallback = defaultGlobalBudgetLimit;
     await notifier.setGlobalLimit(double.tryParse(_limitCtrl.text.replaceAll(',', '.')) ?? fallback);
     await notifier.setSavingGoal(double.tryParse(_goalCtrl.text.replaceAll(',', '.')) ?? defaultSavingGoal);
-    await notifier.setInitialBalance(double.tryParse(_balanceCtrl.text.replaceAll(',', '.')) ?? defaultInitialBalance);
+    await notifier.setInitialBalance(double.tryParse(_initialBalanceCtrl.text.replaceAll(',', '.')) ?? 0.0);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Budget salvato')));
     }
@@ -91,13 +91,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
-                const Text('Archiviazione locale', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                ListTile(
-                  leading: const Icon(Icons.folder),
-                  title: const Text('Dati salvati sul dispositivo'),
-                  subtitle: const Text('Nessun account o servizio cloud richiesto'),
-                ),
-                const Divider(),
                 const Text('Budget', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -105,7 +98,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     controller: _limitCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
-                      labelText: 'Tetto massimo spese mensile',
+                      labelText: 'Tetto massimo spese al mese (€)',
                       prefixText: '€ ',
                       border: OutlineInputBorder(),
                     ),
@@ -117,7 +110,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     controller: _goalCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
-                      labelText: 'Obiettivo risparmio mensile',
+                      labelText: 'Obiettivo risparmio al mese (€)',
                       prefixText: '€ ',
                       border: OutlineInputBorder(),
                     ),
@@ -126,10 +119,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: TextField(
-                    controller: _balanceCtrl,
+                    controller: _initialBalanceCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
-                      labelText: 'Saldo al 1° del mese',
+                      labelText: 'Saldo iniziale mese (€)',
                       prefixText: '€ ',
                       border: OutlineInputBorder(),
                     ),

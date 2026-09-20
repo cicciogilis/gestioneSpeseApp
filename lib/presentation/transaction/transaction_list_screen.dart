@@ -3,25 +3,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/seed_categories.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/providers/selected_period_provider.dart';
 import '../../domain/models/transaction.dart';
 
 class TransactionListScreen extends ConsumerStatefulWidget {
   const TransactionListScreen({super.key});
 
   @override
-  ConsumerState<TransactionListScreen> createState() => _TransactionListScreenState();
+  ConsumerState<TransactionListScreen> createState() =>
+      _TransactionListScreenState();
 }
 
 class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
   final String _searchQuery = '';
   String _selectedTypeFilter = 'Tutti';
   String? _selectedCategoryId;
-  DateTime? _dateFrom;
-  DateTime? _dateTo;
 
   @override
   Widget build(BuildContext context) {
     final asyncValue = ref.watch(transactionsProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lista Transazioni'),
@@ -42,20 +43,35 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
       body: asyncValue.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Errore: $err')),
-        data: (transactions) {
-          final filtered = transactions.where((tx) {
-            final matchesSearch = _searchQuery.isEmpty ||
-                (tx.description?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
-                tx.categoryId.toLowerCase().contains(_searchQuery.toLowerCase());
-            final matchesType = _selectedTypeFilter == 'Tutti' ||
-                (tx.type == TransactionType.expense && _selectedTypeFilter == 'Uscite') ||
-                (tx.type == TransactionType.income && _selectedTypeFilter == 'Entrate');
-            final matchesCategory =
-                _selectedCategoryId == null || tx.categoryId == _selectedCategoryId;
-            final matchesDate = (_dateFrom == null || !tx.date.isBefore(_dateFrom!)) &&
-                (_dateTo == null || !tx.date.isAfter(_dateTo!));
-            return matchesSearch && matchesType && matchesCategory && matchesDate;
-          }).toList();
+data: (transactions) {
+           final selectedPeriod = ref.watch(selectedPeriodProvider);
+           
+           final filtered = transactions.where((tx) {
+             final matchesSearch = _searchQuery.isEmpty ||
+                 (tx.description
+                         ?.toLowerCase()
+                         .contains(_searchQuery.toLowerCase()) ??
+                     false) ||
+                 tx.categoryId
+                     .toLowerCase()
+                     .contains(_searchQuery.toLowerCase());
+
+             final matchesType = _selectedTypeFilter == 'Tutti' ||
+                 (tx.type == TransactionType.expense &&
+                     _selectedTypeFilter == 'Uscite') ||
+                 (tx.type == TransactionType.income &&
+                     _selectedTypeFilter == 'Entrate');
+
+             final matchesCategory = _selectedCategoryId == null ||
+                 tx.categoryId == _selectedCategoryId;
+
+             // Filter by selected period (month/year)
+             final matchesPeriod = 
+                 tx.date.year == selectedPeriod.year && 
+                 tx.date.month == selectedPeriod.month;
+
+             return matchesSearch && matchesType && matchesCategory && matchesPeriod;
+           }).toList();
 
           if (filtered.isEmpty) {
             return const Center(child: Text('Nessuna transazione trovata'));
@@ -65,45 +81,118 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
             itemCount: filtered.length,
             itemBuilder: (context, index) {
               final tx = filtered[index];
+
               return Dismissible(
                 key: ValueKey(tx.id ?? UniqueKey().toString()),
                 background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    child: const Icon(Icons.delete, color: Colors.white)),
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
                 direction: DismissDirection.endToStart,
                 onDismissed: (direction) {
                   setState(() {});
                   ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Transazione eliminata dalla vista')));
+                    const SnackBar(
+                      content: Text('Transazione eliminata dalla vista'),
+                    ),
+                  );
                 },
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor:
-                        tx.type == TransactionType.expense ? Colors.red.shade50 : Colors.green.shade50,
+                    backgroundColor: (() {
+                      final cat = seedCategories.firstWhere(
+                        (c) => c.id == tx.categoryId,
+                        orElse: () => seedCategories.firstWhere(
+                          (c) => c.id == 'cat_altro',
+                          orElse: () => seedCategories.first,
+                        ),
+                      );
+                      return Color(cat.color);
+                    })(),
                     child: Icon(
-                      tx.type == TransactionType.expense ? Icons.shopping_cart : Icons.attach_money,
-                      color: tx.type == TransactionType.expense ? Colors.red : Colors.green,
+                      tx.type == TransactionType.expense
+                          ? Icons.shopping_cart
+                          : Icons.attach_money,
+                      color: Colors.white,
                     ),
                   ),
-                  title: Text(tx.description ?? tx.categoryId,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Row(
+                  title: Text(
+                    tx.description ?? tx.categoryId,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(DateFormat('dd MMM yy').format(tx.date)),
-                      if (tx.recurrence.isRecurring) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.repeat, size: 12, color: Colors.grey),
-                      ],
+                      Text(
+                        (() {
+                          final cat = seedCategories.firstWhere(
+                            (c) => c.id == tx.categoryId,
+                            orElse: () => seedCategories.firstWhere(
+                              (c) => c.id == 'cat_altro',
+                              orElse: () => seedCategories.first,
+                            ),
+                          );
+                          return cat.name;
+                        })(),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Text(DateFormat('dd MMM yy').format(tx.date)),
+                          const SizedBox(width: 8),
+                          Icon(
+                            tx.method.icon,
+                            size: 12,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            tx.method.label,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          if (tx.recurrence.isRecurring) ...[
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.repeat,
+                              size: 12,
+                              color: Colors.grey,
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
-                  trailing: Text(
-                    (tx.type == TransactionType.expense ? '-' : '+') +
-                        NumberFormat.simpleCurrency(locale: 'it_IT').format(tx.amount),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: tx.type == TransactionType.expense ? Colors.red : Colors.green,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (tx.recurrence.isRecurring && tx.ricorrenzaId != null)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.settings,
+                            size: 20,
+                            color: Colors.grey,
+                          ),
+                          onPressed: () => _showRecurrenceBottomSheet(tx),
+                        ),
+                      Text(
+                        (tx.type == TransactionType.expense ? '-' : '+') +
+                            NumberFormat.simpleCurrency(locale: 'it_IT')
+                                .format(tx.amount),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: tx.type == TransactionType.expense
+                              ? Colors.red
+                              : Colors.green,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -112,6 +201,30 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
         },
       ),
     );
+  }
+
+  SelectedPeriod _getPreviousMonth(SelectedPeriod period) {
+    if (period.month == 1) {
+      return SelectedPeriod(year: period.year - 1, month: 12);
+    }
+    return SelectedPeriod(year: period.year, month: period.month - 1);
+  }
+
+  SelectedPeriod _getNextMonth(SelectedPeriod period) {
+    if (period.month == 12) {
+      return SelectedPeriod(year: period.year + 1, month: 1);
+    }
+    return SelectedPeriod(year: period.year, month: period.month + 1);
+  }
+
+  String _getPreviousMonthLabel(SelectedPeriod period) {
+    final prev = _getPreviousMonth(period);
+    return prev.toString();
+  }
+
+  String _getNextMonthLabel(SelectedPeriod period) {
+    final next = _getNextMonth(period);
+    return next.toString();
   }
 
   void _showFilterSheet() {
@@ -131,9 +244,18 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Filtri', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Filtri',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 16),
-                const Text('Tipo', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text(
+                  'Tipo',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 8),
                 SegmentedButton<String>(
                   segments: const [
@@ -142,12 +264,15 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
                     ButtonSegment(value: 'Uscite', label: Text('Uscite')),
                   ],
                   selected: {_selectedTypeFilter},
-                  onSelectionChanged: (set) {
-                    setSheetState(() => _selectedTypeFilter = set.first);
+                  onSelectionChanged: (selection) {
+                    setSheetState(() => _selectedTypeFilter = selection.first);
                   },
                 ),
                 const SizedBox(height: 16),
-                const Text('Categoria', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text(
+                  'Categoria',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -156,59 +281,73 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
                     ChoiceChip(
                       label: const Text('Tutte'),
                       selected: _selectedCategoryId == null,
-                      onSelected: (val) =>
-                          setSheetState(() => _selectedCategoryId = val ? null : _selectedCategoryId),
+                      onSelected: (val) => setSheetState(
+                        () => _selectedCategoryId =
+                            val ? null : _selectedCategoryId,
+                      ),
                     ),
                     ...seedCategories.map((cat) {
                       final isSelected = _selectedCategoryId == cat.id;
+
                       return ChoiceChip(
                         label: Text(cat.name),
                         selected: isSelected,
-                        onSelected: (val) =>
-                            setSheetState(() => _selectedCategoryId = val ? cat.id : null),
+                        onSelected: (val) => setSheetState(
+                          () => _selectedCategoryId = val ? cat.id : null,
+                        ),
                       );
                     }),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.date_range),
-                        label: Text(_dateFrom == null
-                            ? 'Da: qualsiasi'
-                            : 'Da: ${DateFormat('dd/MM/yy').format(_dateFrom!)}'),
-                        onPressed: () async {
-                          final d = await showDatePicker(
-                            context: ctx,
-                            initialDate: _dateFrom ?? DateTime.now(),
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (d != null) setSheetState(() => _dateFrom = d);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.date_range),
-                        label: Text(_dateTo == null
-                            ? 'A: qualsiasi'
-                            : 'A: ${DateFormat('dd/MM/yy').format(_dateTo!)}'),
-                        onPressed: () async {
-                          final d = await showDatePicker(
-                            context: ctx,
-                            initialDate: _dateTo ?? DateTime.now(),
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (d != null) setSheetState(() => _dateTo = d);
-                        },
-                      ),
-                    ),
-                  ],
+                const Text(
+                  'Mese',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final selectedPeriod = ref.watch(selectedPeriodProvider);
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // Current month chip
+                        FilterChip(
+                          label: Text(selectedPeriod.toString()),
+                          selected: true,
+                          onSelected: (_) {},
+                          showCheckmark: false,
+                        ),
+                        // Previous month
+                        FilterChip(
+                          label: Text(_getPreviousMonthLabel(selectedPeriod)),
+                          selected: false,
+                          onSelected: (_) {
+                            final prevMonth = _getPreviousMonth(selectedPeriod);
+                            ref.read(selectedPeriodProvider.notifier).setPeriod(
+                              prevMonth.year,
+                              prevMonth.month,
+                            );
+                            setSheetState(() {});
+                          },
+                        ),
+                        // Next month
+                        FilterChip(
+                          label: Text(_getNextMonthLabel(selectedPeriod)),
+                          selected: false,
+                          onSelected: (_) {
+                            final nextMonth = _getNextMonth(selectedPeriod);
+                            ref.read(selectedPeriodProvider.notifier).setPeriod(
+                              nextMonth.year,
+                              nextMonth.month,
+                            );
+                            setSheetState(() {});
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -218,8 +357,10 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
                         setSheetState(() {
                           _selectedTypeFilter = 'Tutti';
                           _selectedCategoryId = null;
-                          _dateFrom = null;
-                          _dateTo = null;
+                          ref.read(selectedPeriodProvider.notifier).setPeriod(
+                            DateTime.now().year,
+                            DateTime.now().month,
+                          );
                         });
                       },
                       child: const Text('Azzera'),
@@ -241,10 +382,72 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
       ),
     );
   }
+
+  void _showRecurrenceBottomSheet(AppTransaction tx) {
+    if (tx.ricorrenzaId == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Opzioni ricorrenza',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Modifica questa occorrenza'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_note),
+                title: const Text('Modifica tutte le occorrenze future'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete),
+                title: const Text('Elimina questa occorrenza'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ref
+                      .read(transactionsProvider.notifier)
+                      .deleteTransaction(tx.id!);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_forever),
+                title: const Text('Elimina tutte le occorrenze future'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ref
+                      .read(transactionsProvider.notifier)
+                      .deleteFutureRecurrences(tx.ricorrenzaId!);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class TransactionSearchDelegate extends SearchDelegate<dynamic> {
+class TransactionSearchDelegate extends SearchDelegate<String> {
   final WidgetRef ref;
+
   TransactionSearchDelegate(this.ref);
 
   @override
@@ -268,20 +471,31 @@ class TransactionSearchDelegate extends SearchDelegate<dynamic> {
   @override
   Widget buildResults(BuildContext context) {
     final suggestions = ref.read(transactionsProvider).when(
-      loading: () => [],
-      error: (_, _) => [],
-      data: (list) => list.where((tx) =>
-          tx.description?.toLowerCase().contains(query.toLowerCase()) ?? false ||
-          tx.categoryId.toLowerCase().contains(query.toLowerCase())).toList(),
-    );
+          loading: () => <AppTransaction>[],
+          error: (err, stack) => <AppTransaction>[],
+          data: (list) => list
+              .where(
+                (tx) =>
+                    (tx.description
+                            ?.toLowerCase()
+                            .contains(query.toLowerCase()) ??
+                        false) ||
+                    tx.categoryId.toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList(),
+        );
+
     return ListView.builder(
       itemCount: suggestions.length,
       itemBuilder: (context, index) {
         final tx = suggestions[index];
+
         return ListTile(
           title: Text(tx.description ?? tx.categoryId),
           subtitle: Text(DateFormat('dd MMM yy').format(tx.date)),
-          trailing: Text(NumberFormat.simpleCurrency(locale: 'it_IT').format(tx.amount)),
+          trailing: Text(
+            NumberFormat.simpleCurrency(locale: 'it_IT').format(tx.amount),
+          ),
         );
       },
     );

@@ -44,7 +44,7 @@ void main() {
         amount: 25.0,
         type: TransactionType.expense,
         categoryId: 'cat_alimentari',
-        method: PaymentMethod.card,
+        method: MetodoPagamento.carta,
         date: DateTime(2026, 1, 15),
         recurrence: Recurrence.monthly,
       );
@@ -64,7 +64,7 @@ void main() {
         amount: 25.0,
         type: TransactionType.expense,
         categoryId: 'cat_alimentari',
-        method: PaymentMethod.card,
+        method: MetodoPagamento.carta,
         date: DateTime(2026, 1, 15),
         description: 'Spesa',
       );
@@ -84,7 +84,7 @@ void main() {
         amount: 10.0,
         type: TransactionType.income,
         categoryId: 'cat_stipendio',
-        method: PaymentMethod.transfer,
+        method: MetodoPagamento.bonifico,
         date: DateTime(2026, 1, 1),
       );
       SharedPreferences.setMockInitialValues({
