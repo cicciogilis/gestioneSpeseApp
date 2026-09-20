@@ -8,6 +8,7 @@ import '../../core/providers/budget_provider.dart';
 import '../../core/providers/selected_period_provider.dart';
 import '../../widgets/period_selector_bottom_sheet.dart';
 import '../../domain/models/transaction.dart';
+import '../../utils/category_utils.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -37,18 +38,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'SpesApp',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'SpesApp',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).appBarTheme.foregroundColor,
+                        ),
+                      ),
                     ),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           period.toString(),
-                          style: const TextStyle(fontSize: 13, color: Colors.white70),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context).appBarTheme.foregroundColor?.withValues(alpha: 0.7),
+                          ),
                         ),
-                        const Icon(Icons.arrow_drop_down, size: 18, color: Colors.white70),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 18,
+                          color: Theme.of(context).appBarTheme.foregroundColor?.withValues(alpha: 0.7),
+                        ),
                       ],
                     ),
                   ],
@@ -58,9 +73,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           },
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () {
-            ref.read(transactionsProvider.notifier).loadTransactions();
-          }),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              ref.read(transactionsProvider.notifier).loadTransactions();
+            },
+          ),
         ],
       ),
       body: asyncValue.when(
@@ -73,8 +91,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildDashboard(BuildContext context, WidgetRef ref, List<AppTransaction> transactions) {
     final selectedPeriod = ref.watch(selectedPeriodProvider);
-    
-    // Calculate totals
+
     double totalExpenses = 0.0;
     double totalIncomes = 0.0;
     for (var t in transactions) {
@@ -106,11 +123,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             },
           ),
           const SizedBox(height: 24),
-          const Text('BUDGET MENSILE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const Text(
+            'BUDGET MENSILE',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+          ),
           const SizedBox(height: 8),
           _buildBudgetProgress(budgetPct, totalExpenses, budget.globalLimit, fmt),
           const SizedBox(height: 24),
-          const Text('ULTIME TRANSAZIONI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const Text(
+            'ULTIME TRANSAZIONI',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+          ),
           const SizedBox(height: 8),
           ...transactions.take(5).map((tx) => _buildTransactionTile(tx, fmt)),
         ],
@@ -127,7 +150,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('SALDO NETTO', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+            const Text(
+              'SALDO NETTO',
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Text(
               fmt.format(balance),
@@ -145,14 +171,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   children: [
                     const Icon(Icons.arrow_upward, color: Colors.green, size: 16),
                     const SizedBox(width: 4),
-                    Text('Entrate ${fmt.format(inAmt)}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                    Text(
+                      'Entrate ${fmt.format(inAmt)}',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
                 Row(
                   children: [
                     const Icon(Icons.arrow_downward, color: Colors.red, size: 16),
                     const SizedBox(width: 4),
-                    Text('Uscite ${fmt.format(outAmt)}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                    Text(
+                      'Uscite ${fmt.format(outAmt)}',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
               ],
@@ -186,8 +218,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${(pct * 100).toStringAsFixed(0)}% Utilizzato', style: TextStyle(fontWeight: FontWeight.bold, color: progressColor)),
-                Text('${fmt.format(current)} / ${fmt.format(limit)}', style: const TextStyle(color: Colors.grey)),
+                Text(
+                  '${(pct * 100).toStringAsFixed(0)}% Utilizzato',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: progressColor),
+                ),
+                Text(
+                  '${fmt.format(current)} / ${fmt.format(limit)}',
+                  style: const TextStyle(color: Colors.grey),
+                ),
               ],
             )
           ],
@@ -198,6 +236,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildTransactionTile(AppTransaction tx, NumberFormat fmt) {
     final isExpense = tx.type == TransactionType.expense;
+    final displayName = tx.description ?? categoryDisplayName(tx.categoryId);
     return Card(
       margin: const EdgeInsets.only(bottom: 8.0),
       child: ListTile(
@@ -208,7 +247,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             color: isExpense ? Colors.red : Colors.green,
           ),
         ),
-        title: Text(tx.description ?? tx.categoryId, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          displayName,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         subtitle: Row(
           children: [
             Text(DateFormat('dd MMM yy').format(tx.date)),

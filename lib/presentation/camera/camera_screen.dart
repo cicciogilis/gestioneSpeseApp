@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../../core/providers/app_providers.dart';
 import '../../../../domain/models/expense_draft.dart';
@@ -19,11 +21,27 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   final ImagePicker _picker = ImagePicker();
 
   String? _imagePath;
+  String? _tempImagePath;
   bool _isProcessing = false;
   String _processingStep = '';
 
   @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scansiona Scontrino'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  @override
   void dispose() {
+    _tempImagePath = null;
     super.dispose();
   }
 
@@ -31,29 +49,61 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final XFile? image = await _picker.pickImage(source: source);
     if (image == null) return;
 
+    String? tempImagePath;
+    try {
+      // Copy image to controlled temp directory with unique name
+      final tempDir = await getTemporaryDirectory();
+      final tempName = 'receipt_${DateTime.now().millisecondsSinceEpoch}${p.extension(image.path)}';
+      final newPath = p.join(tempDir.path, tempName);
+
+      await image.saveTo(newPath);
+      tempImagePath = newPath;
+      _tempImagePath = newPath;
+    } catch (e) {
+      debugPrint('CameraScreen._pickImage: failed to copy to temp: $e');
+    }
+
+    // Verify file exists before processing
+    final pathToProcess = tempImagePath ?? image.path;
+    if (!File(pathToProcess).existsSync()) {
+      _showUserFriendlyError('Foto non disponibile. Riprova a scattare.');
+      return;
+    }
+
     setState(() {
-      _imagePath = image.path;
+      _imagePath = pathToProcess;
       _isProcessing = true;
       _processingStep = 'Analisi dello scontrino...';
     });
 
-    await _processImage(image.path);
+    await _processImage(pathToProcess);
   }
 
   Future<void> _processImage(String path) async {
     try {
+      // Verify file exists before OCR processing
+      if (!File(path).existsSync()) {
+        _showUserFriendlyError('Foto non disponibile. Riprova a scattare.');
+        setState(() => _imagePath = null);
+        return;
+      }
+
       // Step 1: Receipt recognition + pipeline
       _updateStep('Analisi dello scontrino...');
       final expenseService = ref.read(receiptExpenseServiceProvider);
       final draft = await expenseService.processReceipt(path);
-      
+
       if (!mounted) return;
-      
+
       _updateStep('Sto preparando la spesa...');
-      
+
       // Navigate to add transaction with prefilled data
       _navigateToAddTransaction(draft);
+    } on PathNotFoundException {
+      _showUserFriendlyError('Foto non disponibile. Riprova a scattare.');
+      setState(() => _imagePath = null);
     } catch (e) {
+      debugPrint('CameraScreen._processImage error: $e');
       if (!mounted) return;
       _showErrorDialog(e.toString());
     } finally {
@@ -76,46 +126,50 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     context.push('/add', extra: draft.toMap());
   }
 
-  void _showErrorDialog(String error) {
+  void _showUserFriendlyError(String message) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Errore elaborazione'),
-        content: Text(
-          'Non è stato possibile leggere lo scontrino.\n'
-          'Puoi riprovare con una foto più nitida oppure inserire la spesa manualmente.\n\n'
-          'Dettaglio: $error',
-        ),
+        title: const Text('Errore'),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Inserisci manualmente'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              if (_imagePath != null) {
-                _processImage(_imagePath!);
-              }
-            },
-            child: const Text('Riprova'),
+            child: const Text('OK'),
           ),
         ],
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scansiona Scontrino'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+  void _showErrorDialog(String error) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Errore elaborazione'),
+        content: const Text(
+          'Non è stato possibile leggere lo scontrino.\n'
+          'Puoi riprovare con una foto più nitida oppure inserire la spesa manualmente.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Inserisci manualmente'),
+          ),
+          if (_tempImagePath != null && File(_tempImagePath!).existsSync())
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                if (mounted && _tempImagePath != null) {
+                  _processImage(_tempImagePath!);
+                }
+              },
+              child: const Text('Riprova'),
+            ),
+        ],
       ),
-      body: _buildBody(),
     );
   }
 

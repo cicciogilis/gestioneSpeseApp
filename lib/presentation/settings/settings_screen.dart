@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/budget_provider.dart';
@@ -14,7 +14,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _notificationsEnabled = true;
-  bool _useBiometric = false;
   final ExportService _exportService = ExportService();
   bool _isExporting = false;
 
@@ -127,15 +126,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onChanged: (bool value) {
                     setState(() {
                       _notificationsEnabled = value;
-                    });
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text('Blocco biometrico'),
-                  value: _useBiometric,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _useBiometric = value;
                     });
                   },
                 ),

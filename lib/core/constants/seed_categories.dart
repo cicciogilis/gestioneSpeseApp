@@ -15,7 +15,7 @@ const List<AppCategory> seedCategories = [
   AppCategory(id: 'cat_sport', name: 'Sport', icon: 'fitness_center', color: 0xFF00BCD4, type: CategoryType.expense),
   AppCategory(id: 'cat_altro', name: 'Altro', icon: 'more_horiz', color: 0xFFBDBDBD, type: CategoryType.expense),
   AppCategory(id: 'cat_cura', name: 'Cura della persona', icon: 'spa', color: 0xFF9C27B0, type: CategoryType.expense),
-  AppCategory(id: 'cat_regali', name: 'Regali', icon: 'card_giftcard', color: 0xFFFFC107, type: CategoryType.income),
+  AppCategory(id: 'cat_regali', name: 'Regali', icon: 'card_giftcard', color: 0xFFFFC107, type: CategoryType.expense),
   AppCategory(id: 'cat_affitto', name: 'Affitto', icon: 'home_repair_service', color: 0xFFA1887F, type: CategoryType.expense),
   // Income
   AppCategory(id: 'cat_stipendio', name: 'Stipendio', icon: 'card_giftcard', color: 0xFFFFC107, type: CategoryType.income),
