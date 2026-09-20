@@ -2,13 +2,46 @@ import 'transaction.dart';
 
 enum ReceiptStatus { draft, pending, confirmed, rejected }
 
+class ScannedReceiptItem {
+  final String description;
+  final double? quantity;
+  final double? unitPrice;
+  final double? totalPrice;
+
+  const ScannedReceiptItem({
+    required this.description,
+    this.quantity,
+    this.unitPrice,
+    this.totalPrice,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'description': description,
+      'quantity': quantity,
+      'unit_price': unitPrice,
+      'total_price': totalPrice,
+    };
+  }
+
+  factory ScannedReceiptItem.fromMap(Map<String, dynamic> map) {
+    return ScannedReceiptItem(
+      description: map['description'] ?? '',
+      quantity: (map['quantity'] as num?)?.toDouble(),
+      unitPrice: (map['unit_price'] as num?)?.toDouble(),
+      totalPrice: (map['total_price'] as num?)?.toDouble(),
+    );
+  }
+}
+
 class ScannedReceipt {
   final String? id;
   final String imagePath;
-  final String? extractedText;
-  final double? amount;
-  final DateTime? date;
-  final String? merchant;
+  final String? merchantName;
+  final DateTime? purchaseDate;
+  final double? totalAmount;
+  final List<ScannedReceiptItem> items;
+  final String rawText;
   final String? categoryId;
   final MetodoPagamento? method;
   final String? description;
@@ -19,10 +52,11 @@ class ScannedReceipt {
   const ScannedReceipt({
     this.id,
     required this.imagePath,
-    this.extractedText,
-    this.amount,
-    this.date,
-    this.merchant,
+    this.merchantName,
+    this.purchaseDate,
+    this.totalAmount,
+    required this.items,
+    required this.rawText,
     this.categoryId,
     this.method,
     this.description,
@@ -35,10 +69,11 @@ class ScannedReceipt {
     return {
       if (id != null) 'id': id,
       'image_path': imagePath,
-      'extracted_text': extractedText,
-      'amount': amount,
-      'date': date?.toIso8601String(),
-      'merchant': merchant,
+      'merchant_name': merchantName,
+      'purchase_date': purchaseDate?.toIso8601String(),
+      'total_amount': totalAmount,
+      'items': items.map((i) => i.toMap()).toList(),
+      'raw_text': rawText,
       'category_id': categoryId,
       'method': method?.name.toUpperCase(),
       'description': description,
@@ -52,10 +87,13 @@ class ScannedReceipt {
     return ScannedReceipt(
       id: map['id'],
       imagePath: map['image_path'] ?? '',
-      extractedText: map['extracted_text'],
-      amount: (map['amount'] as num?)?.toDouble(),
-      date: map['date'] != null ? DateTime.tryParse(map['date']) : null,
-      merchant: map['merchant'],
+      merchantName: map['merchant_name'],
+      purchaseDate: map['purchase_date'] != null ? DateTime.tryParse(map['purchase_date']) : null,
+      totalAmount: (map['total_amount'] as num?)?.toDouble(),
+      items: (map['items'] as List<dynamic>? ?? [])
+          .map((e) => ScannedReceiptItem.fromMap(e as Map<String, dynamic>))
+          .toList(),
+      rawText: map['raw_text'] ?? '',
       categoryId: map['category_id'],
       method: map['method'] != null ? _parseMethod(map['method']) : null,
       description: map['description'],
@@ -93,10 +131,11 @@ class ScannedReceipt {
   ScannedReceipt copyWith({
     String? id,
     String? imagePath,
-    String? extractedText,
-    double? amount,
-    DateTime? date,
-    String? merchant,
+    String? merchantName,
+    DateTime? purchaseDate,
+    double? totalAmount,
+    List<ScannedReceiptItem>? items,
+    String? rawText,
     String? categoryId,
     MetodoPagamento? method,
     String? description,
@@ -107,10 +146,11 @@ class ScannedReceipt {
     return ScannedReceipt(
       id: id ?? this.id,
       imagePath: imagePath ?? this.imagePath,
-      extractedText: extractedText ?? this.extractedText,
-      amount: amount ?? this.amount,
-      date: date ?? this.date,
-      merchant: merchant ?? this.merchant,
+      merchantName: merchantName ?? this.merchantName,
+      purchaseDate: purchaseDate ?? this.purchaseDate,
+      totalAmount: totalAmount ?? this.totalAmount,
+      items: items ?? this.items,
+      rawText: rawText ?? this.rawText,
       categoryId: categoryId ?? this.categoryId,
       method: method ?? this.method,
       description: description ?? this.description,
@@ -121,17 +161,17 @@ class ScannedReceipt {
   }
 
   bool get isComplete =>
-      amount != null &&
-      date != null &&
-      merchant != null &&
+      totalAmount != null &&
+      purchaseDate != null &&
+      merchantName != null &&
       categoryId != null &&
       method != null;
 
   double get confidence {
     int filled = 0;
-    if (amount != null) filled++;
-    if (date != null) filled++;
-    if (merchant != null) filled++;
+    if (totalAmount != null) filled++;
+    if (purchaseDate != null) filled++;
+    if (merchantName != null) filled++;
     if (categoryId != null) filled++;
     if (method != null) filled++;
     return filled / 5.0;

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/budget_provider.dart';
 import '../../core/providers/selected_period_provider.dart';
@@ -70,6 +72,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildDashboard(BuildContext context, WidgetRef ref, List<AppTransaction> transactions) {
+    final selectedPeriod = ref.watch(selectedPeriodProvider);
+    
     // Calculate totals
     double totalExpenses = 0.0;
     double totalIncomes = 0.0;
@@ -82,7 +86,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     final budget = ref.watch(budgetProvider);
-    double balance = budget.initialBalance + totalIncomes - totalExpenses;
     double budgetPct = (totalExpenses / budget.globalLimit).clamp(0.0, 1.0);
 
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
@@ -94,7 +97,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          _buildBalanceCard(balance, totalIncomes, totalExpenses, fmt),
+          FutureBuilder<double>(
+            future: _getSaldoIniziale(selectedPeriod.year, selectedPeriod.month),
+            builder: (context, snapshot) {
+              final saldoIniziale = snapshot.data ?? 0.0;
+              double balance = saldoIniziale + totalIncomes - totalExpenses;
+              return _buildBalanceCard(balance, totalIncomes, totalExpenses, fmt);
+            },
+          ),
           const SizedBox(height: 24),
           const Text('BUDGET MENSILE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
           const SizedBox(height: 8),
@@ -214,5 +224,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
       ),
     );
+  }
+
+  Future<double> _getSaldoIniziale(int year, int month) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'saldo_iniziale_${year}_$month';
+    return prefs.getDouble(key) ?? 0.0;
   }
 }

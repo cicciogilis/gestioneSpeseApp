@@ -1,74 +1,108 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../../core/constants/seed_categories.dart';
-import '../../../../data/services/llm_service.dart';
-import '../../../../data/services/ml_kit_service.dart';
 
-class CameraScreen extends StatefulWidget {
+import '../../../../core/providers/app_providers.dart';
+import '../../../../domain/models/expense_draft.dart';
+
+class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
 
   @override
-  State<CameraScreen> createState() => _CameraScreenState();
+  ConsumerState<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenState extends ConsumerState<CameraScreen> {
   final ImagePicker _picker = ImagePicker();
-  final MLKitService _mlKitService = MLKitService();
-  late final LLMService _llmService = LLMService(
-    apiKey: String.fromEnvironment('LLM_API_KEY'),
-  );
 
   String? _imagePath;
-  String? _recognizedText;
   bool _isProcessing = false;
+  String _processingStep = '';
 
-  Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.camera);
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  Future<void> _pickImage({ImageSource source = ImageSource.camera}) async {
+    final XFile? image = await _picker.pickImage(source: source);
     if (image == null) return;
 
     setState(() {
       _imagePath = image.path;
-      _recognizedText = null;
-      _isProcessing = false;
+      _isProcessing = true;
+      _processingStep = 'Analisi dello scontrino...';
     });
 
     await _processImage(image.path);
   }
 
   Future<void> _processImage(String path) async {
-    setState(() => _isProcessing = true);
     try {
-      final text = await _mlKitService.recognizeText(path);
+      // Step 1: Receipt recognition + pipeline
+      _updateStep('Analisi dello scontrino...');
+      final expenseService = ref.read(receiptExpenseServiceProvider);
+      final draft = await expenseService.processReceipt(path);
+      
       if (!mounted) return;
-      setState(() => _recognizedText = text);
-
-      // Prepara contesto categorie per il prompt
-      final cats = seedCategories.map((c) => '"${c.name}"').join(', ');
-      if (!_llmService.isConfigured) {
-        // Flusso alternativo B: AI non configurata -> form di inserimento manuale pulito
-        _navigateToPrefillForm({});
-        return;
-      }
-      final parsed = await _llmService.parseReceiptText(text, cats);
-      _navigateToPrefillForm(parsed);
+      
+      _updateStep('Sto preparando la spesa...');
+      
+      // Navigate to add transaction with prefilled data
+      _navigateToAddTransaction(draft);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore elaborazione: $e')),
-      );
-      // Degrado sul form manuale pulito
-      _navigateToPrefillForm({});
+      _showErrorDialog(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _processingStep = '';
+        });
+      }
     }
   }
 
-  void _navigateToPrefillForm(Map<String, dynamic> aiResult) {
-    if (!mounted) return;
-    // Naviga e passa il risultato AI pre-popolato
-    context.push('/add', extra: aiResult);
+  void _updateStep(String step) {
+    if (mounted) {
+      setState(() => _processingStep = step);
+    }
+  }
+
+  void _navigateToAddTransaction(ExpenseDraft draft) {
+    context.push('/add', extra: draft.toMap());
+  }
+
+  void _showErrorDialog(String error) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Errore elaborazione'),
+        content: Text(
+          'Non è stato possibile leggere lo scontrino.\n'
+          'Puoi riprovare con una foto più nitida oppure inserire la spesa manualmente.\n\n'
+          'Dettaglio: $error',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Inserisci manualmente'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (_imagePath != null) {
+                _processImage(_imagePath!);
+              }
+            },
+            child: const Text('Riprova'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -81,12 +115,33 @@ class _CameraScreenState extends State<CameraScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: _isProcessing
-          ? const Center(child: CircularProgressIndicator())
-          : _imagePath == null
-              ? _buildNoImageState()
-              : _buildWithImageState(),
+      body: _buildBody(),
     );
+  }
+
+  Widget _buildBody() {
+    if (_isProcessing) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 24),
+            Text(
+              _processingStep,
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_imagePath == null) {
+      return _buildNoImageState();
+    }
+
+    return _buildWithImageState();
   }
 
   Widget _buildNoImageState() {
@@ -96,14 +151,25 @@ class _CameraScreenState extends State<CameraScreen> {
         children: [
           const Icon(Icons.camera_alt, size: 96, color: Colors.grey),
           const SizedBox(height: 24),
-          const Text('Pronto per scansionare lo scontrino',
-              style: TextStyle(fontSize: 18)),
+          const Text(
+            'Pronto per scansionare lo scontrino',
+            style: TextStyle(fontSize: 18),
+          ),
           const SizedBox(height: 32),
           ElevatedButton.icon(
-            onPressed: _pickImage,
+            onPressed: () => _pickImage(source: ImageSource.camera),
             icon: const Icon(Icons.camera_alt),
             label: const Text('SCATTA FOTO'),
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => _pickImage(source: ImageSource.gallery),
+            icon: const Icon(Icons.photo_library),
+            label: const Text('SCEGLI DA GALLERIA'),
+            style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(50),
             ),
           ),
@@ -123,20 +189,24 @@ class _CameraScreenState extends State<CameraScreen> {
             child: Image.file(File(_imagePath!), fit: BoxFit.contain),
           ),
         ),
-        if (_recognizedText != null)
-          Expanded(
-            flex: 1,
-            child: Card(
-              margin: const EdgeInsets.all(12),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Testo Riconosciuto:\n$_recognizedText',
-                  style: const TextStyle(fontFamily: 'monospace'),
-                ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _imagePath = null),
+                icon: const Icon(Icons.refresh),
+                label: const Text('RIFAI FOTO'),
               ),
-            ),
+              FilledButton.icon(
+                onPressed: () => _processImage(_imagePath!),
+                icon: const Icon(Icons.send),
+                label: const Text('ELABORA'),
+              ),
+            ],
           ),
+        ),
       ],
     );
   }

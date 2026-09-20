@@ -20,7 +20,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   late final TextEditingController _limitCtrl;
   late final TextEditingController _goalCtrl;
-  late final TextEditingController _initialBalanceCtrl;
 
   @override
   void initState() {
@@ -28,14 +27,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final budget = ref.read(budgetProvider);
     _limitCtrl = TextEditingController(text: budget.globalLimit.toStringAsFixed(0));
     _goalCtrl = TextEditingController(text: budget.savingGoal.toStringAsFixed(0));
-    _initialBalanceCtrl = TextEditingController(text: budget.initialBalance.toStringAsFixed(0));
   }
 
   @override
   void dispose() {
     _limitCtrl.dispose();
     _goalCtrl.dispose();
-    _initialBalanceCtrl.dispose();
     super.dispose();
   }
 
@@ -44,7 +41,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     const fallback = defaultGlobalBudgetLimit;
     await notifier.setGlobalLimit(double.tryParse(_limitCtrl.text.replaceAll(',', '.')) ?? fallback);
     await notifier.setSavingGoal(double.tryParse(_goalCtrl.text.replaceAll(',', '.')) ?? defaultSavingGoal);
-    await notifier.setInitialBalance(double.tryParse(_initialBalanceCtrl.text.replaceAll(',', '.')) ?? 0.0);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Budget salvato')));
     }
@@ -111,18 +107,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Obiettivo risparmio al mese (€)',
-                      prefixText: '€ ',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: TextField(
-                    controller: _initialBalanceCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Saldo iniziale mese (€)',
                       prefixText: '€ ',
                       border: OutlineInputBorder(),
                     ),

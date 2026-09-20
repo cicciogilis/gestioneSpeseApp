@@ -111,15 +111,15 @@ class ReceiptDraftsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        receipt.merchant ?? 'Sconosciuto',
+                        receipt.merchantName ?? 'Sconosciuto',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
-                        receipt.date != null
-                            ? DateFormat('dd MMM yyyy', 'it_IT').format(receipt.date!)
+                        receipt.purchaseDate != null
+                            ? DateFormat('dd MMM yyyy', 'it_IT').format(receipt.purchaseDate!)
                             : 'Data sconosciuta',
                         style: TextStyle(
                           fontSize: 12,
@@ -129,9 +129,9 @@ class ReceiptDraftsScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (receipt.amount != null)
+                if (receipt.totalAmount != null)
                   Text(
-                    fmt.format(receipt.amount!),
+                    fmt.format(receipt.totalAmount!),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -139,10 +139,10 @@ class ReceiptDraftsScreen extends ConsumerWidget {
                   ),
               ],
             ),
-            if (receipt.extractedText != null && receipt.extractedText!.isNotEmpty) ...[
+            if (receipt.rawText.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
-                'Anteprima: ${receipt.extractedText!.substring(0, receipt.extractedText!.length > 100 ? 100 : receipt.extractedText!.length)}...',
+                'Anteprima: ${receipt.rawText.substring(0, receipt.rawText.length > 100 ? 100 : receipt.rawText.length)}...',
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.grey,
@@ -218,12 +218,12 @@ class ReceiptDraftsScreen extends ConsumerWidget {
     }
 
     context.push('/add', extra: {
-      'amount': receipt.amount,
-      'date': receipt.date?.toIso8601String().split('T').first,
+      'amount': receipt.totalAmount,
+      'date': receipt.purchaseDate?.toIso8601String().split('T').first,
       'category': receipt.categoryId != null
           ? seedCategories.firstWhere((c) => c.id == receipt.categoryId, orElse: () => seedCategories.first).name
           : null,
-      'title': receipt.merchant,
+      'title': receipt.merchantName,
       'method': receipt.method?.name,
       'description': receipt.description,
     }).then((_) {
@@ -284,10 +284,10 @@ class _ReceiptEditSheetState extends ConsumerState<_ReceiptEditSheet> {
   @override
   void initState() {
     super.initState();
-    _amountCtrl = TextEditingController(text: widget.receipt.amount?.toStringAsFixed(2) ?? '');
-    _merchantCtrl = TextEditingController(text: widget.receipt.merchant ?? '');
+    _amountCtrl = TextEditingController(text: widget.receipt.totalAmount?.toStringAsFixed(2) ?? '');
+    _merchantCtrl = TextEditingController(text: widget.receipt.merchantName ?? '');
     _descCtrl = TextEditingController(text: widget.receipt.description ?? '');
-    _selectedDate = widget.receipt.date;
+    _selectedDate = widget.receipt.purchaseDate;
     _selectedCategoryId = widget.receipt.categoryId;
     _selectedMethod = widget.receipt.method;
   }
@@ -314,10 +314,10 @@ class _ReceiptEditSheetState extends ConsumerState<_ReceiptEditSheet> {
     }
 
     final updated = widget.receipt.copyWith(
-      amount: amount,
-      merchant: _merchantCtrl.text.isNotEmpty ? _merchantCtrl.text : null,
+      totalAmount: amount,
+      merchantName: _merchantCtrl.text.isNotEmpty ? _merchantCtrl.text : null,
       description: _descCtrl.text.isNotEmpty ? _descCtrl.text : null,
-      date: _selectedDate,
+      purchaseDate: _selectedDate,
       categoryId: _selectedCategoryId,
       method: _selectedMethod,
       updatedAt: DateTime.now(),

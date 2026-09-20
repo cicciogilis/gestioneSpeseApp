@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/seed_categories.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/selected_period_provider.dart';
+import '../../data/repositories/transaction_repository.dart';
 import '../../domain/models/transaction.dart';
 
 class TransactionListScreen extends ConsumerStatefulWidget {
@@ -203,30 +205,6 @@ data: (transactions) {
     );
   }
 
-  SelectedPeriod _getPreviousMonth(SelectedPeriod period) {
-    if (period.month == 1) {
-      return SelectedPeriod(year: period.year - 1, month: 12);
-    }
-    return SelectedPeriod(year: period.year, month: period.month - 1);
-  }
-
-  SelectedPeriod _getNextMonth(SelectedPeriod period) {
-    if (period.month == 12) {
-      return SelectedPeriod(year: period.year + 1, month: 1);
-    }
-    return SelectedPeriod(year: period.year, month: period.month + 1);
-  }
-
-  String _getPreviousMonthLabel(SelectedPeriod period) {
-    final prev = _getPreviousMonth(period);
-    return prev.toString();
-  }
-
-  String _getNextMonthLabel(SelectedPeriod period) {
-    final next = _getNextMonth(period);
-    return next.toString();
-  }
-
   void _showFilterSheet() {
     showModalBottomSheet(
       context: context,
@@ -308,44 +286,39 @@ data: (transactions) {
                 Consumer(
                   builder: (context, ref, child) {
                     final selectedPeriod = ref.watch(selectedPeriodProvider);
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        // Current month chip
-                        FilterChip(
-                          label: Text(selectedPeriod.toString()),
-                          selected: true,
-                          onSelected: (_) {},
-                          showCheckmark: false,
-                        ),
-                        // Previous month
-                        FilterChip(
-                          label: Text(_getPreviousMonthLabel(selectedPeriod)),
-                          selected: false,
-                          onSelected: (_) {
-                            final prevMonth = _getPreviousMonth(selectedPeriod);
-                            ref.read(selectedPeriodProvider.notifier).setPeriod(
-                              prevMonth.year,
-                              prevMonth.month,
-                            );
-                            setSheetState(() {});
-                          },
-                        ),
-                        // Next month
-                        FilterChip(
-                          label: Text(_getNextMonthLabel(selectedPeriod)),
-                          selected: false,
-                          onSelected: (_) {
-                            final nextMonth = _getNextMonth(selectedPeriod);
-                            ref.read(selectedPeriodProvider.notifier).setPeriod(
-                              nextMonth.year,
-                              nextMonth.month,
-                            );
-                            setSheetState(() {});
-                          },
-                        ),
-                      ],
+                    final now = DateTime.now();
+                    final maxMonth = (selectedPeriod.year == now.year) ? now.month : 12;
+                    
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: List.generate(maxMonth, (index) {
+                          final month = index + 1;
+                          final isSelected = 
+                              selectedPeriod.year == now.year && 
+                              selectedPeriod.month == month;
+                          final label = DateFormat('MMM', 'it_IT').format(DateTime(now.year, month));
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(label),
+                              selected: isSelected,
+                              onSelected: (_) {
+                                ref.read(selectedPeriodProvider.notifier).setPeriod(
+                                  now.year,
+                                  month,
+                                );
+                                setSheetState(() {});
+                              },
+                              selectedColor: Theme.of(context).colorScheme.primary,
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.white : null,
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
                     );
                   },
                 ),
@@ -408,18 +381,49 @@ data: (transactions) {
                 title: const Text('Modifica questa occorrenza'),
                 onTap: () {
                   Navigator.pop(ctx);
+                  context.push('/add', extra: {
+                    'amount': tx.amount,
+                    'date': tx.date.toIso8601String().split('T').first,
+                    'category': tx.categoryId,
+                    'title': tx.description ?? tx.categoryId,
+                    'method': tx.method.name,
+                    'description': tx.description,
+                    'recurrence': Recurrence.none, // scollega dalla ricorrenza
+                  });
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.edit_note),
                 title: const Text('Modifica tutte le occorrenze future'),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(ctx);
+                  final repo = TransactionRepository();
+                  final templates = await repo.getTemplates();
+                  final template = templates.firstWhere(
+                    (t) => t.id == tx.ricorrenzaId,
+                    orElse: () => throw Exception('Template non trovato'),
+                  );
+                  
+                  // Apri form precompilato con dati template
+                  if (mounted) {
+                    context.push('/add', extra: {
+                      'amount': template.amount,
+                      'date': template.dataProssimaOccorrenza.toIso8601String().split('T').first,
+                      'category': template.categoryId,
+                      'title': template.description ?? template.categoryId,
+                      'method': template.method.name,
+                      'description': template.description,
+                      'recurrence': template.recurrence,
+                      'editTemplate': true,
+                      'templateId': template.id,
+                    });
+                  }
                 },
               ),
+              const Divider(),
               ListTile(
-                leading: const Icon(Icons.delete),
-                title: const Text('Elimina questa occorrenza'),
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Elimina questa occorrenza', style: TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(ctx);
                   ref
@@ -428,8 +432,8 @@ data: (transactions) {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_forever),
-                title: const Text('Elimina tutte le occorrenze future'),
+                leading: const Icon(Icons.delete_forever, color: Colors.red),
+                title: const Text('Elimina tutte le occorrenze future', style: TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(ctx);
                   ref
