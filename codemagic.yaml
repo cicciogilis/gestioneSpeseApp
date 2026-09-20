@@ -2,6 +2,9 @@ workflows:
   spesapp-debug:
     name: SpesApp Debug APK
     max_build_duration: 30
+    environment:
+      groups:
+        - gemini_env
     scripts:
       - name: Install dependencies
         script: |
