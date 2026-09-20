@@ -4,7 +4,7 @@ import 'package:path_provider/path_provider.dart';
 class TempFileService {
   static const String _prefix = 'spesapp_';
 
-  Future<void> cleanupTempFiles({Duration maxAge = const Duration(days: 7)}) async {
+  Future<void> cleanupTempFiles({Duration maxAge = const Duration(minutes: 60)}) async {
     try {
       final dir = await getTemporaryDirectory();
       final now = DateTime.now();
