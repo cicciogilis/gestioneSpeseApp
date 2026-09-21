@@ -39,8 +39,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     );
   }
 
+  bool _isImageValid() =>
+      _imagePath != null && File(_imagePath!).existsSync();
+
   @override
   void dispose() {
+    if (_tempImagePath != null) {
+      final file = File(_tempImagePath!);
+      if (file.existsSync()) {
+        file.deleteSync();
+        debugPrint('[CameraScreen] File temporaneo eliminato al dispose');
+      }
+    }
     _tempImagePath = null;
     super.dispose();
   }
@@ -240,7 +250,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           child: Container(
             width: double.infinity,
             color: Colors.grey.shade200,
-            child: Image.file(File(_imagePath!), fit: BoxFit.contain),
+            child: _buildPreview(),
           ),
         ),
         Padding(
@@ -254,7 +264,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 label: const Text('RIFAI FOTO'),
               ),
               FilledButton.icon(
-                onPressed: () => _processImage(_imagePath!),
+                onPressed: _isImageValid()
+                    ? () => _processImage(_imagePath!)
+                    : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor:
+                      _isImageValid() ? null : Colors.grey,
+                ),
                 icon: const Icon(Icons.send),
                 label: const Text('ELABORA'),
               ),
@@ -264,4 +280,30 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       ],
     );
   }
+
+  Widget _buildPreview() {
+    final isValid = _isImageValid();
+    if (!isValid) {
+      return _placeholder();
+    }
+    return Image.file(
+      File(_imagePath!),
+      fit: BoxFit.contain,
+       errorBuilder: (_, _, _) => _placeholder(),
+     );
+   }
+
+   Widget _placeholder() => const Center(
+         child: Column(
+           mainAxisAlignment: MainAxisAlignment.center,
+           children: [
+             Icon(Icons.camera_alt, size: 64, color: Colors.grey),
+             SizedBox(height: 12),
+             Text(
+               'Scatta o seleziona uno scontrino',
+               style: TextStyle(color: Colors.grey),
+             ),
+           ],
+         ),
+       );
 }

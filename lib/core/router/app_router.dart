@@ -5,6 +5,7 @@ import '../../presentation/home/home_screen.dart';
 import '../../presentation/onboarding/onboarding_screen.dart';
 import '../../presentation/onboarding/splash_screen.dart';
 import '../../presentation/receipts/receipt_drafts_screen.dart';
+import '../../presentation/settings/initial_balance_config_screen.dart';
 import '../../presentation/settings/settings_screen.dart';
 import '../../presentation/transaction/add_transaction_screen.dart';
 import '../../presentation/transaction/transaction_list_screen.dart';
@@ -50,6 +51,10 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: 'receipts',
           builder: (context, state) => const ReceiptDraftsScreen(),
+        ),
+        GoRoute(
+          path: 'initial-balance-config',
+          builder: (context, state) => const InitialBalanceConfigScreen(),
         ),
       ],
     ),

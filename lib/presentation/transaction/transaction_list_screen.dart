@@ -7,6 +7,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/providers/selected_period_provider.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../domain/models/transaction.dart';
+import '../../utils/category_utils.dart';
 
 class TransactionListScreen extends ConsumerStatefulWidget {
   const TransactionListScreen({super.key});
@@ -119,29 +120,20 @@ data: (transactions) {
                       color: Colors.white,
                     ),
                   ),
-                  title: Text(
-                    tx.description ?? tx.categoryId,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        (() {
-                          final cat = seedCategories.firstWhere(
-                            (c) => c.id == tx.categoryId,
-                            orElse: () => seedCategories.firstWhere(
-                              (c) => c.id == 'cat_altro',
-                              orElse: () => seedCategories.first,
-                            ),
-                          );
-                          return cat.name;
-                        })(),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
+                   title: Text(
+                     transactionTitle(tx.description, tx.categoryId),
+                     style: const TextStyle(fontWeight: FontWeight.w600),
+                   ),
+                   subtitle: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Text(
+                         categoryDisplayName(tx.categoryId),
+                         style: const TextStyle(
+                           fontSize: 12,
+                           color: Colors.grey,
+                         ),
+                       ),
                       Row(
                         children: [
                           Text(DateFormat('dd MMM yy').format(tx.date)),
@@ -385,7 +377,7 @@ data: (transactions) {
                     'amount': tx.amount,
                     'date': tx.date.toIso8601String().split('T').first,
                     'category': tx.categoryId,
-                    'title': tx.description ?? tx.categoryId,
+                    'title': transactionTitle(tx.description, tx.categoryId),
                     'method': tx.method.name,
                     'description': tx.description,
                     'recurrence': Recurrence.none, // scollega dalla ricorrenza
@@ -410,7 +402,7 @@ data: (transactions) {
                       'amount': template.amount,
                       'date': template.dataProssimaOccorrenza.toIso8601String().split('T').first,
                       'category': template.categoryId,
-                      'title': template.description ?? template.categoryId,
+                      'title': transactionTitle(template.description, template.categoryId),
                       'method': template.method.name,
                       'description': template.description,
                       'recurrence': template.recurrence,
@@ -495,7 +487,7 @@ class TransactionSearchDelegate extends SearchDelegate<String> {
         final tx = suggestions[index];
 
         return ListTile(
-          title: Text(tx.description ?? tx.categoryId),
+            title: Text(transactionTitle(tx.description, tx.categoryId)),
           subtitle: Text(DateFormat('dd MMM yy').format(tx.date)),
           trailing: Text(
             NumberFormat.simpleCurrency(locale: 'it_IT').format(tx.amount),

@@ -16,7 +16,12 @@ class ExportService {
     return fmt.format(DateTime(year, month));
   }
 
-  String _csvOf(List<AppTransaction> transactions, int year, int month) {
+  String _csvOf(
+    List<AppTransaction> transactions,
+    int year,
+    int month,
+    double saldoIniziale,
+  ) {
     final buffer = StringBuffer();
     buffer.writeln('Report SpesApp - ${_monthYearLabel(year, month)}');
     buffer.writeln();
@@ -36,8 +41,6 @@ class ExportService {
       buffer.writeln();
     }
 
-    // Summary rows (4 righe riepilogo)
-    double saldoIniziale = 0.0;
     double totalUscite = 0.0;
     double totalEntrate = 0.0;
     for (final tx in transactions) {
@@ -59,7 +62,12 @@ class ExportService {
     return buffer.toString();
   }
 
-  Future<Uint8List> _pdfBytesOf(List<AppTransaction> transactions, int year, int month) async {
+  Future<Uint8List> _pdfBytesOf(
+    List<AppTransaction> transactions,
+    int year,
+    int month,
+    double saldoIniziale,
+  ) async {
     final document = pw.Document();
     final monthLabel = _monthYearLabel(year, month);
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
@@ -89,7 +97,7 @@ class ExportService {
           pw.SizedBox(height: 20),
           pw.Align(
             alignment: pw.Alignment.centerRight,
-            child: _pdfSummary(transactions, fmt),
+            child: _pdfSummary(transactions, saldoIniziale, fmt),
           ),
         ],
       ),
@@ -97,7 +105,11 @@ class ExportService {
     return document.save();
   }
 
-  pw.Widget _pdfSummary(List<AppTransaction> transactions, NumberFormat fmt) {
+  pw.Widget _pdfSummary(
+    List<AppTransaction> transactions,
+    double saldoIniziale,
+    NumberFormat fmt,
+  ) {
     double totalUscite = 0.0;
     double totalEntrate = 0.0;
     for (final tx in transactions) {
@@ -107,7 +119,6 @@ class ExportService {
         totalEntrate += tx.amount;
       }
     }
-    const saldoIniziale = 0.0;
     final saldoNetto = saldoIniziale + totalEntrate - totalUscite;
     final bg = saldoNetto >= 0 ? PdfColors.green200 : PdfColors.red200;
 
@@ -136,16 +147,20 @@ class ExportService {
 
   Future<File> _writeTempFile(String fileName, Uint8List bytes) async {
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/\$fileName');
+    final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes);
     return file;
   }
 
-  int _extractYear(int? defaultYear) => DateTime.now().year;
-  int _extractMonth(int? defaultMonth) => DateTime.now().month;
-
-  Future<void> exportCsv(List<AppTransaction> transactions, {int? year, int? month}) async {
-    final csv = _csvOf(transactions, _extractYear(year), _extractMonth(month));
+  Future<void> exportCsv(
+    List<AppTransaction> transactions, {
+    int? year,
+    int? month,
+    double saldoIniziale = 0.0,
+  }) async {
+    final y = year ?? DateTime.now().year;
+    final m = month ?? DateTime.now().month;
+    final csv = _csvOf(transactions, y, m, saldoIniziale);
     final file = await _writeTempFile(
       'spesapp_report_${DateTime.now().millisecondsSinceEpoch}.csv',
       Uint8List.fromList(csv.codeUnits),
@@ -158,8 +173,15 @@ class ExportService {
     );
   }
 
-  Future<void> exportPdf(List<AppTransaction> transactions, {int? year, int? month}) async {
-    final bytes = await _pdfBytesOf(transactions, _extractYear(year), _extractMonth(month));
+  Future<void> exportPdf(
+    List<AppTransaction> transactions, {
+    int? year,
+    int? month,
+    double saldoIniziale = 0.0,
+  }) async {
+    final y = year ?? DateTime.now().year;
+    final m = month ?? DateTime.now().month;
+    final bytes = await _pdfBytesOf(transactions, y, m, saldoIniziale);
     final file = await _writeTempFile(
       'spesapp_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
       bytes,

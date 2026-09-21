@@ -1,7 +1,10 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/budget_provider.dart';
+import '../../core/providers/month_balance_provider.dart';
+import '../../core/providers/selected_period_provider.dart';
 import '../../data/services/export_service.dart';
 import '../../domain/models/transaction.dart';
 
@@ -65,7 +68,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           data: (list) => list,
           orElse: () => const <AppTransaction>[],
         );
-    await _runExport(() => _exportService.exportCsv(transactions));
+    final period = ref.read(selectedPeriodProvider);
+    final saldoIniziale = await _getSaldoIniziale(period.year, period.month);
+    await _runExport(() => _exportService.exportCsv(
+          transactions,
+          year: period.year,
+          month: period.month,
+          saldoIniziale: saldoIniziale,
+        ));
   }
 
   Future<void> _exportPdf() async {
@@ -73,7 +83,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           data: (list) => list,
           orElse: () => const <AppTransaction>[],
         );
-    await _runExport(() => _exportService.exportPdf(transactions));
+    final period = ref.read(selectedPeriodProvider);
+    final saldoIniziale = await _getSaldoIniziale(period.year, period.month);
+    await _runExport(() => _exportService.exportPdf(
+          transactions,
+          year: period.year,
+          month: period.month,
+          saldoIniziale: saldoIniziale,
+        ));
+  }
+
+  Future<double> _getSaldoIniziale(int year, int month) async {
+    final snapshot = ref.read(monthBalanceProvider);
+    return snapshot.when(
+      data: (balance) => balance?.baselineAmount ?? 0.0,
+      loading: () => 0.0,
+      error: (_, _) => 0.0,
+    );
   }
 
   @override
@@ -85,10 +111,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: _isExporting
           ? const Center(child: CircularProgressIndicator())
           : ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
                 const Text('Budget', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: TextField(
                     controller: _limitCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -100,7 +128,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: TextField(
                     controller: _goalCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -112,14 +140,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: FilledButton(
                     onPressed: _saveBudget,
                     child: const Text('Salva Budget'),
                   ),
                 ),
+                const SizedBox(height: 16),
                 const Divider(),
+                const SizedBox(height: 8),
                 const Text('Preferenze', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
                 SwitchListTile(
                   title: const Text('Notifiche'),
                   value: _notificationsEnabled,
@@ -129,8 +160,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     });
                   },
                 ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.account_balance_wallet),
+                  title: const Text('Configurazione Saldo Iniziale'),
+                  subtitle: const Text('Imposta o ricalcola il saldo mensile'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/initial-balance-config'),
+                ),
+                const SizedBox(height: 8),
                 const Divider(),
+                const SizedBox(height: 8),
                 const Text('Esportazione', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
                 ListTile(
                   leading: const Icon(Icons.table_chart),
                   title: const Text('Esporta CSV'),
@@ -143,8 +185,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: const Text('Invia il report come documento PDF'),
                   onTap: _exportPdf,
                 ),
+                const SizedBox(height: 8),
                 const Divider(),
+                const SizedBox(height: 8),
                 const Text('Informazioni', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
                 ListTile(
                   leading: const Icon(Icons.info),
                   title: const Text('Versione 1.0.0'),

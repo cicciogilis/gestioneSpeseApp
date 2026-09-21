@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repositories/month_balance_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../data/services/expense_category_classifier.dart';
 import '../../data/services/expense_description_service.dart';
@@ -9,6 +10,8 @@ import '../../data/services/receipt_expense_service.dart';
 import '../../data/services/receipt_recognition_service.dart';
 import '../../data/services/receipt_service.dart';
 import '../../domain/models/transaction.dart';
+import 'month_balance_provider.dart';
+import 'selected_period_provider.dart';
 
 final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
   return TransactionRepository();
@@ -71,4 +74,72 @@ class TransactionListNotifier extends AsyncNotifier<List<AppTransaction>> {
 
 final transactionsProvider = AsyncNotifierProvider<TransactionListNotifier, List<AppTransaction>>(() {
   return TransactionListNotifier();
+});
+
+class HomeData {
+  final double saldoNetto;
+  final double entrate;
+  final double uscite;
+  final double saldoIniziale;
+  final List<AppTransaction> monthlyTransactions;
+
+  const HomeData({
+    required this.saldoNetto,
+    required this.entrate,
+    required this.uscite,
+    required this.saldoIniziale,
+    required this.monthlyTransactions,
+  });
+}
+
+class HomeDataNotifier extends AsyncNotifier<HomeData> {
+  late TransactionRepository _txRepo;
+  late MonthBalanceRepository _balanceRepo;
+
+  @override
+  FutureOr<HomeData> build() async {
+    _txRepo = ref.watch(transactionRepositoryProvider);
+    _balanceRepo = ref.watch(monthBalanceRepositoryProvider);
+    final period = ref.watch(selectedPeriodProvider);
+    return _fetchHomeData(period.year, period.month);
+  }
+
+  Future<HomeData> _fetchHomeData(int year, int month) async {
+    final transactions = await _txRepo.getTransactionsForMonth(year, month);
+
+    double totalIncome = 0;
+    double totalExpense = 0;
+    for (final tx in transactions) {
+      if (tx.type == TransactionType.income) {
+        totalIncome += tx.amount;
+      } else if (tx.type == TransactionType.expense) {
+        totalExpense += tx.amount;
+      }
+    }
+
+    final balance = await _balanceRepo.getMonthBalance(year, month);
+    final saldoIniziale = balance?.baselineAmount ?? 0.0;
+    final saldoNetto = saldoIniziale + totalIncome - totalExpense;
+
+    return HomeData(
+      saldoNetto: saldoNetto,
+      entrate: totalIncome,
+      uscite: totalExpense,
+      saldoIniziale: saldoIniziale,
+      monthlyTransactions: transactions,
+    );
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final period = ref.read(selectedPeriodProvider);
+      return _fetchHomeData(period.year, period.month);
+    });
+  }
+}
+
+final homeDataProvider =
+    AsyncNotifierProvider<HomeDataNotifier, HomeData>(() {
+  return HomeDataNotifier();
 });

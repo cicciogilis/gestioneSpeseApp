@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import '../../core/constants/seed_categories.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/selected_period_provider.dart';
-import '../../domain/models/category.dart';
 import '../../domain/models/transaction.dart';
+import '../../utils/category_utils.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -26,90 +26,103 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       body: asyncValue.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Errore: $err')),
-        data: (transactions) => _buildAnalytics(context, transactions),
+        data: (allTransactions) =>
+            _buildAnalytics(context, allTransactions),
       ),
     );
   }
 
-  static const AppCategory _fallbackCategory = AppCategory(
-    id: 'cat_altro',
-    name: 'Altro',
-    icon: 'category',
-    color: 0xFF9E9E9E,
-    type: CategoryType.expense,
-  );
-
-  String _categoryName(String categoryId) {
-    return seedCategories
-        .firstWhere((c) => c.id == categoryId, orElse: () => _fallbackCategory)
-        .name;
-  }
-
   Color _categoryColor(String categoryId) {
-    return Color(
-        seedCategories.firstWhere((c) => c.id == categoryId, orElse: () => _fallbackCategory).color);
+    final cat = seedCategories.firstWhere(
+      (c) => c.id == categoryId,
+      orElse: () => seedCategories.firstWhere(
+        (c) => c.id == 'cat_altro',
+        orElse: () => seedCategories.first,
+      ),
+    );
+    return Color(cat.color);
   }
 
-  Widget _buildAnalytics(BuildContext context, List<AppTransaction> allTransactions) {
+  Widget _buildAnalytics(
+      BuildContext context, List<AppTransaction> allTransactions) {
     final selectedPeriod = ref.watch(selectedPeriodProvider);
     final periodLabel = selectedPeriod.toString();
-    
-    // Filter transactions by selected period
+    final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
+
+    // Filter transactions by selected period for summary + pie chart
     final transactions = allTransactions.where((t) {
-      final monthKey = DateFormat('yyyy-MM').format(t.date);
-      final periodKey = '${selectedPeriod.year}-${selectedPeriod.month.toString().padLeft(2, '0')}';
-      return monthKey == periodKey;
+      return t.date.year == selectedPeriod.year &&
+          t.date.month == selectedPeriod.month;
     }).toList();
-    
+
     double totalIncome = 0.0;
     double totalExpense = 0.0;
     for (var t in transactions) {
       if (t.type == TransactionType.income) totalIncome += t.amount;
       if (t.type == TransactionType.expense) totalExpense += t.amount;
     }
-    final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
 
     final expensesByCategory = <String, double>{};
+    for (final t in transactions) {
+      if (t.type != TransactionType.expense) continue;
+      expensesByCategory.update(
+        t.categoryId,
+        (v) => v + t.amount,
+        ifAbsent: () => t.amount,
+      );
+    }
+
+    // Trend data uses ALL transactions (not just selected month)
     final monthlyExpensesByCategory = <String, Map<String, double>>{};
     final monthlyBalance = <String, double>{};
     final monthlyData = <String>[];
-    for (final t in transactions) {
-      if (t.type != TransactionType.expense) continue;
-      expensesByCategory.update(t.categoryId, (v) => v + t.amount, ifAbsent: () => t.amount);
-      
-      // Build monthly expenses by category for stacked bar chart
+    for (final t in allTransactions) {
       final monthKey = DateFormat('yyyy-MM').format(t.date);
-      monthlyExpensesByCategory
-          .putIfAbsent(monthKey, () => <String, double>{})
-          .update(t.categoryId, (v) => v + t.amount, ifAbsent: () => t.amount);
-      
-      monthlyBalance.update(
-        monthKey,
-        (v) => v - t.amount,
-        ifAbsent: () => -t.amount,
-      );
-    }
-    for (final t in transactions) {
-      if (t.type != TransactionType.income) continue;
-      final monthKey = DateFormat('yyyy-MM').format(t.date);
-      monthlyBalance.update(monthKey, (v) => v + t.amount, ifAbsent: () => t.amount);
+      if (t.type == TransactionType.expense) {
+        monthlyExpensesByCategory
+            .putIfAbsent(monthKey, () => <String, double>{})
+            .update(t.categoryId, (v) => v + t.amount, ifAbsent: () => t.amount);
+        monthlyBalance.update(
+          monthKey,
+          (v) => v - t.amount,
+          ifAbsent: () => -t.amount,
+        );
+      } else if (t.type == TransactionType.income) {
+        monthlyBalance.update(
+          monthKey,
+          (v) => v + t.amount,
+          ifAbsent: () => t.amount,
+        );
+      }
     }
     monthlyData.addAll(monthlyBalance.keys.toList()..sort());
     final sortedMonths = monthlyExpensesByCategory.keys.toList()..sort();
+
     final pieSections = expensesByCategory.entries.map((e) {
       return PieChartSectionData(
         value: e.value,
-        title: '${(e.value / (totalExpense == 0 ? 1 : totalExpense) * 100).toStringAsFixed(0)}%',
+        title:
+            '${(e.value / (totalExpense == 0 ? 1 : totalExpense) * 100).toStringAsFixed(0)}%',
         color: _categoryColor(e.key),
         radius: 40,
-        titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+        titleStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.white),
       );
     }).toList();
+
+    final allCategoryIds = <String>{
+      ...expensesByCategory.keys,
+      for (final cats in monthlyExpensesByCategory.values) ...cats.keys,
+    };
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        Text('Riassunto — $periodLabel', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text('Riassunto — $periodLabel',
+            style:
+                const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Card(
           child: Padding(
@@ -120,7 +133,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Totale Entrate'),
-                    Text('+${fmt.format(totalIncome)}', style: const TextStyle(color: Colors.green)),
+                    Text('+${fmt.format(totalIncome)}',
+                        style: const TextStyle(color: Colors.green)),
                   ],
                 ),
                 const Divider(),
@@ -128,7 +142,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Totale Uscite'),
-                    Text('-${fmt.format(totalExpense)}', style: const TextStyle(color: Colors.red)),
+                    Text('-${fmt.format(totalExpense)}',
+                        style: const TextStyle(color: Colors.red)),
                   ],
                 ),
                 const Divider(),
@@ -136,12 +151,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Saldo Netto'),
-                    Text(fmt.format(totalIncome - totalExpense),
-                        style: TextStyle(
-                            color: (totalIncome - totalExpense) >= 0
-                                ? Colors.green
-                                : Colors.red,
-                            fontWeight: FontWeight.bold)),
+                    Text(
+                      fmt.format(totalIncome - totalExpense),
+                      style: TextStyle(
+                        color: (totalIncome - totalExpense) >= 0
+                            ? Colors.green
+                            : Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -149,7 +167,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        const Text('Spese per Categoria', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const Text('Spese per Categoria',
+            style:
+                TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         if (pieSections.isEmpty)
           Container(
@@ -173,32 +193,38 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Totale', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const Text('Totale',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
                     Text(fmt.format(totalExpense),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
             ),
           ),
         const SizedBox(height: 16),
-        ...expensesByCategory.entries.map((e) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(color: _categoryColor(e.key), shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(_categoryName(e.key))),
-                  Text(fmt.format(e.value)),
-                ],
-              ),
-            )),
+        ...expensesByCategory.entries.map(
+          (e) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                      color: _categoryColor(e.key), shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(categoryDisplayName(e.key))),
+                Text(fmt.format(e.value)),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
-        const Text('Trend Spese Mensile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const Text('Trend Spese Mensile',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         if (monthlyExpensesByCategory.isEmpty)
           Container(
@@ -210,21 +236,24 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         else
           Column(
             children: [
-              // Legend
               Wrap(
                 spacing: 16,
                 runSpacing: 8,
-                children: expensesByCategory.keys.map((catId) {
+                children: allCategoryIds.map((catId) {
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 12,
                         height: 12,
-                        decoration: BoxDecoration(color: _categoryColor(catId), shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                            color: _categoryColor(catId),
+                            shape: BoxShape.circle),
                       ),
                       const SizedBox(width: 4),
-                      Text(_categoryName(catId), style: const TextStyle(fontSize: 11)),
+                      Text(categoryDisplayName(catId),
+                          style:
+                              const TextStyle(fontSize: 11)),
                     ],
                   );
                 }).toList(),
@@ -236,12 +265,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   BarChartData(
                     alignment: BarChartAlignment.spaceAround,
                     maxY: (monthlyExpensesByCategory.values
-                        .map((cats) => cats.values.fold(0.0, (a, b) => a + b))
-                        .reduce((a, b) => a > b ? a : b) * 1.1)
+                            .map((cats) => cats.values.fold(
+                                0.0, (a, b) => a + b))
+                            .reduce((a, b) => a > b ? a : b) *
+                        1.1)
                         .clamp(1, double.infinity),
                     barTouchData: BarTouchData(
                       touchTooltipData: BarTouchTooltipData(
-                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        getTooltipItem:
+                            (group, groupIndex, rod, rodIndex) {
                           final month = sortedMonths[groupIndex];
                           return BarTooltipItem(
                             '$month\n${fmt.format(rod.toY)}',
@@ -251,20 +283,28 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                       ),
                     ),
                     titlesData: FlTitlesData(
-                      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      leftTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
                       bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
                             final idx = value.toInt();
-                            if (idx < 0 || idx >= sortedMonths.length) return const Text('');
+                            if (idx < 0 || idx >= sortedMonths.length) {
+                              return const Text('');
+                            }
                             final month = sortedMonths[idx];
-                            final label = DateFormat('MMM').format(DateTime.parse('$month-01'));
+                            final label = DateFormat('MMM').format(
+                                DateTime.parse('$month-01'));
                             return Padding(
                               padding: const EdgeInsets.only(top: 8),
-                              child: Text(label, style: const TextStyle(fontSize: 10)),
+                              child: Text(label,
+                                  style:
+                                      const TextStyle(fontSize: 10)),
                             );
                           },
                         ),
@@ -273,8 +313,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     barGroups: sortedMonths.asMap().entries.map((e) {
                       final monthKey = e.value;
                       final cats = monthlyExpensesByCategory[monthKey]!;
-                      final sortedCats = cats.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
-                      
+                      final sortedCats =
+                          cats.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+
                       final rodStackItems = <BarChartRodStackItem>[];
                       double currentY = 0;
                       for (final catEntry in sortedCats) {
@@ -285,7 +326,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                         ));
                         currentY += catEntry.value;
                       }
-                      
+
                       return BarChartGroupData(
                         x: e.key,
                         barRods: [
@@ -301,10 +342,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   ),
                 ),
               ),
-            ], // <-- CORRETTO: Era una parentesi tonda )
-          ), // <-- CORRETTO: Rimosso ": const SizedBox.shrink()"
+            ],
+          ),
         const SizedBox(height: 24),
-        const Text('Trend Saldo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const Text('Trend Saldo',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         if (monthlyData.isEmpty)
           Container(
@@ -318,25 +360,36 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             height: 220,
             child: LineChart(
               LineChartData(
-                minY: monthlyBalance.values.reduce((a, b) => a < b ? a : b) * 1.05,
-                maxY: monthlyBalance.values.reduce((a, b) => a > b ? a : b) * 1.05,
+                minY: monthlyBalance.values
+                        .reduce((a, b) => a < b ? a : b) *
+                    1.05,
+                maxY: monthlyBalance.values
+                        .reduce((a, b) => a > b ? a : b) *
+                    1.05,
                 borderData: FlBorderData(show: false),
                 gridData: const FlGridData(show: true),
                 titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         final idx = value.toInt();
-                        if (idx < 0 || idx >= monthlyData.length) return const Text('');
+                        if (idx < 0 || idx >= monthlyData.length) {
+                          return const Text('');
+                        }
                         final month = monthlyData[idx];
-                        final label = DateFormat('MMM').format(DateTime.parse('$month-01'));
+                        final label = DateFormat('MMM')
+                            .format(DateTime.parse('$month-01'));
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: Text(label, style: const TextStyle(fontSize: 10)),
+                          child: Text(label,
+                              style: const TextStyle(fontSize: 10)),
                         );
                       },
                     ),
@@ -358,7 +411,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     spots: monthlyData.asMap().entries.map((e) {
                       return FlSpot(
                         e.key.toDouble(),
-                        monthlyBalance[e.value]!.clamp(double.negativeInfinity, double.infinity),
+                        monthlyBalance[e.value]!.clamp(
+                            double.negativeInfinity, double.infinity),
                       );
                     }).toList(),
                     isCurved: true,

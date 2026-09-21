@@ -303,6 +303,27 @@ class TransactionRepository {
     return years;
   }
 
+  Future<List<AppTransaction>> getTransactionsForMonth(int year, int month) async {
+    final all = await getTransactions();
+    return all.where((tx) => tx.date.year == year && tx.date.month == month).toList();
+  }
+
+  Future<List<AppTransaction>> getTransactionsForPeriod(
+      int year, int month, int monthsBack) async {
+    final all = await getTransactions();
+    final results = <AppTransaction>[];
+    for (int i = 0; i < monthsBack; i++) {
+      int m = month - i;
+      int y = year;
+      while (m < 1) {
+        m += 12;
+        y -= 1;
+      }
+      results.addAll(all.where((tx) => tx.date.year == y && tx.date.month == m));
+    }
+    return results;
+  }
+
   Future<void> deleteTransaction(String id) async {
     final prefs = await SharedPreferences.getInstance();
     final transactions = await _loadTransactions(prefs);
