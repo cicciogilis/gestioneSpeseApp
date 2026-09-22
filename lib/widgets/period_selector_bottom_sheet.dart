@@ -229,6 +229,11 @@ Future<void> openPeriodSelector({
 }) async {
   final availableYears = await TransactionRepository().getAvailableYears();
 
+  final now = DateTime.now();
+  final futureYears =
+      List.generate(6, (i) => now.year + i); // now.year .. now.year + 5
+  final allYears = {...availableYears, ...futureYears}.toList()..sort();
+
   if (!context.mounted) return;
 
   await showModalBottomSheet(
@@ -238,7 +243,7 @@ Future<void> openPeriodSelector({
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (_) => PeriodSelectorBottomSheet(
-      availableYears: availableYears,
+      availableYears: allYears,
     ),
   );
 }

@@ -20,6 +20,7 @@ class _InitialBalanceConfigScreenState
   late int _selectedMonth;
   final _amountCtrl = TextEditingController();
   bool _isLoading = false;
+  bool _useCurrentDay = false;
 
   static const List<String> _monthLabels = [
     'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -52,6 +53,12 @@ class _InitialBalanceConfigScreenState
     if (balance != null) {
       setState(() {
         _amountCtrl.text = balance.baselineAmount.toStringAsFixed(2);
+        _useCurrentDay = balance.isCurrentDay;
+      });
+    } else {
+      setState(() {
+        _amountCtrl.text = '';
+        _useCurrentDay = false;
       });
     }
   }
@@ -125,10 +132,13 @@ class _InitialBalanceConfigScreenState
 
       final now = DateTime.now();
       final isCurrentMonth = _selectedYear == now.year && _selectedMonth == now.month;
-      final baselineType = isCurrentMonth
-          ? MonthBalance.baselineMonthStart
+      final effectiveUseCurrentDay = _useCurrentDay && isCurrentMonth;
+      final baselineType = effectiveUseCurrentDay
+          ? MonthBalance.baselineCurrentDay
           : MonthBalance.baselineMonthStart;
-      final baselineDate = DateTime(_selectedYear, _selectedMonth, 1);
+      final baselineDate = effectiveUseCurrentDay
+          ? DateTime(now.year, now.month, now.day)
+          : DateTime(_selectedYear, _selectedMonth, 1);
 
       await repo.upsertMonthBalance(MonthBalance(
         year: _selectedYear,
@@ -236,12 +246,15 @@ class _InitialBalanceConfigScreenState
                       ),
                     ),
                     if (_isCurrentMonth())
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Puoi impostare il saldo al primo giorno del mese o al giorno corrente.',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                      CheckboxListTile(
+                        title: const Text('Usa saldo del giorno corrente'),
+                        subtitle: const Text(
+                          'Le transazioni precedenti a oggi non verranno conteggiate.',
                         ),
+                        value: _useCurrentDay,
+                        onChanged: (val) {
+                          setState(() => _useCurrentDay = val ?? false);
+                        },
                       ),
                     const SizedBox(height: 24),
                     const Text(

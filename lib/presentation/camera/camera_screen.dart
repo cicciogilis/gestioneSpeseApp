@@ -63,7 +63,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     try {
       // Copy image to controlled temp directory with unique name
       final tempDir = await getTemporaryDirectory();
-      final tempName = 'receipt_${DateTime.now().millisecondsSinceEpoch}${p.extension(image.path)}';
+      final tempName =
+          'receipt_${DateTime.now().millisecondsSinceEpoch}${p.extension(image.path)}';
       final newPath = p.join(tempDir.path, tempName);
 
       await image.saveTo(newPath);
@@ -82,11 +83,19 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
     setState(() {
       _imagePath = pathToProcess;
-      _isProcessing = true;
-      _processingStep = 'Analisi dello scontrino...';
+      _isProcessing = false;
+      _processingStep = '';
     });
 
-    await _processImage(pathToProcess);
+    // Auto-process only when capturing from camera; gallery selection shows
+    // preview and lets the user tap ELABORA (see requirement Fix 10)
+    if (source == ImageSource.camera) {
+      setState(() {
+        _isProcessing = true;
+        _processingStep = 'Analisi dello scontrino...';
+      });
+      await _processImage(pathToProcess);
+    }
   }
 
   Future<void> _processImage(String path) async {
@@ -161,12 +170,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         title: const Text('Errore elaborazione'),
         content: const Text(
           'Non è stato possibile leggere lo scontrino.\n'
-          'Puoi riprovare con una foto più nitida oppure inserire la spesa manualmente.',
+          'Puoi riprovare con una foto più nitida.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Inserisci manualmente'),
+            child: const Text('Chiudi'),
           ),
           if (_tempImagePath != null && File(_tempImagePath!).existsSync())
             FilledButton(
@@ -262,6 +271,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 onPressed: () => setState(() => _imagePath = null),
                 icon: const Icon(Icons.refresh),
                 label: const Text('RIFAI FOTO'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _pickImage(source: ImageSource.gallery),
+                icon: const Icon(Icons.photo_library),
+                label: const Text('GALLERIA'),
               ),
               FilledButton.icon(
                 onPressed: _isImageValid()

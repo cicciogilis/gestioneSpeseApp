@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/seed_categories.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/providers/month_balance_provider.dart';
 import '../../core/providers/selected_period_provider.dart';
 import '../../domain/models/transaction.dart';
 import '../../utils/category_utils.dart';
@@ -26,8 +27,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       body: asyncValue.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Errore: $err')),
-        data: (allTransactions) =>
-            _buildAnalytics(context, allTransactions),
+        data: (allTransactions) {
+          final balanceAsync = ref.watch(monthBalanceProvider);
+          final saldoIniziale =
+              balanceAsync.when(data: (b) => b?.baselineAmount ?? 0.0, loading: () => 0.0, error: (_, _) => 0.0);
+          return _buildAnalytics(context, allTransactions, saldoIniziale);
+        },
       ),
     );
   }
@@ -44,7 +49,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 
   Widget _buildAnalytics(
-      BuildContext context, List<AppTransaction> allTransactions) {
+      BuildContext context, List<AppTransaction> allTransactions, double saldoIniziale) {
     final selectedPeriod = ref.watch(selectedPeriodProvider);
     final periodLabel = selectedPeriod.toString();
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
@@ -127,18 +132,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Totale Entrate'),
-                    Text('+${fmt.format(totalIncome)}',
-                        style: const TextStyle(color: Colors.green)),
-                  ],
-                ),
-                const Divider(),
-                Row(
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Saldo Iniziale'),
+                      Text(fmt.format(saldoIniziale),
+                          style: const TextStyle(color: Colors.blueGrey)),
+                    ],
+                  ),
+                  const Divider(),
+                  Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Totale Uscite'),
@@ -375,25 +380,34 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                       sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final idx = value.toInt();
-                        if (idx < 0 || idx >= monthlyData.length) {
-                          return const Text('');
-                        }
-                        final month = monthlyData[idx];
-                        final label = DateFormat('MMM')
-                            .format(DateTime.parse('$month-01'));
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(label,
-                              style: const TextStyle(fontSize: 10)),
-                        );
-                      },
-                    ),
-                  ),
+                   bottomTitles: AxisTitles(
+                     sideTitles: SideTitles(
+                       showTitles: true,
+                       getTitlesWidget: (value, meta) {
+                         final idx = value.toInt();
+                         if (idx < 0 || idx >= monthlyData.length) {
+                           return const Text('');
+                         }
+                         final month = monthlyData[idx];
+                         final label = DateFormat('MMM')
+                             .format(DateTime.parse('$month-01'));
+                         // Show label only if different from the previous month's label
+                         // to avoid duplicate month names across years
+                         final prevLabel = idx > 0
+                             ? DateFormat('MMM')
+                                 .format(DateTime.parse('${monthlyData[idx - 1]}-01'))
+                             : null;
+                         if (prevLabel == label) {
+                           return const SizedBox.shrink();
+                         }
+                         return Padding(
+                           padding: const EdgeInsets.only(top: 8),
+                           child: Text(label,
+                               style: const TextStyle(fontSize: 10)),
+                         );
+                       },
+                     ),
+                   ),
                 ),
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(

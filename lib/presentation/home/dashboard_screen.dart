@@ -128,6 +128,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 Row(
                   children: [
+                    const Icon(Icons.account_balance,
+                        color: Colors.blueGrey, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Saldo Iniziale ${fmt.format(data.saldoIniziale)}',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
                     const Icon(Icons.arrow_upward,
                         color: Colors.green, size: 16),
                     const SizedBox(width: 4),

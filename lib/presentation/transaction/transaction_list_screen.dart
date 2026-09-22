@@ -102,8 +102,19 @@ data: (transactions) {
                   );
                 },
                 child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: (() {
+                leading: CircleAvatar(
+                  backgroundColor: (() {
+                    final cat = seedCategories.firstWhere(
+                      (c) => c.id == tx.categoryId,
+                      orElse: () => seedCategories.firstWhere(
+                        (c) => c.id == 'cat_altro',
+                        orElse: () => seedCategories.first,
+                      ),
+                    );
+                    return Color(cat.color);
+                  })(),
+                  child: Icon(
+                    () {
                       final cat = seedCategories.firstWhere(
                         (c) => c.id == tx.categoryId,
                         orElse: () => seedCategories.firstWhere(
@@ -111,15 +122,11 @@ data: (transactions) {
                           orElse: () => seedCategories.first,
                         ),
                       );
-                      return Color(cat.color);
-                    })(),
-                    child: Icon(
-                      tx.type == TransactionType.expense
-                          ? Icons.shopping_cart
-                          : Icons.attach_money,
-                      color: Colors.white,
-                    ),
+                      return cat.iconData;
+                    }(),
+                    color: Colors.white,
                   ),
+                ),
                    title: Text(
                      transactionTitle(tx.description, tx.categoryId),
                      style: const TextStyle(fontWeight: FontWeight.w600),
@@ -268,51 +275,6 @@ data: (transactions) {
                       );
                     }),
                   ],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Mese',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Consumer(
-                  builder: (context, ref, child) {
-                    final selectedPeriod = ref.watch(selectedPeriodProvider);
-                    final now = DateTime.now();
-                    final maxMonth = (selectedPeriod.year == now.year) ? now.month : 12;
-                    
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: List.generate(maxMonth, (index) {
-                          final month = index + 1;
-                          final isSelected = 
-                              selectedPeriod.year == now.year && 
-                              selectedPeriod.month == month;
-                          final label = DateFormat('MMM', 'it_IT').format(DateTime(now.year, month));
-                          
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(label),
-                              selected: isSelected,
-                              onSelected: (_) {
-                                ref.read(selectedPeriodProvider.notifier).setPeriod(
-                                  now.year,
-                                  month,
-                                );
-                                setSheetState(() {});
-                              },
-                              selectedColor: Theme.of(context).colorScheme.primary,
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : null,
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    );
-                  },
                 ),
                 const SizedBox(height: 16),
                 Row(

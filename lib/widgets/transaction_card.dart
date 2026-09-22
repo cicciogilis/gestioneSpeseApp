@@ -18,8 +18,6 @@ class TransactionCard extends StatelessWidget {
     this.compact = false,
   });
 
-  static const IconData _defaultIcon = Icons.category;
-
   @override
   Widget build(BuildContext context) {
     final isExpense = transaction.type == TransactionType.expense;
@@ -27,7 +25,7 @@ class TransactionCard extends StatelessWidget {
     final catName = categoryDisplayName(transaction.categoryId);
     final cat = _lookupCategory(transaction.categoryId);
     final color = Color(cat.color);
-    final iconData = _iconData(cat.icon);
+    final iconData = cat.iconData;
 
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
 
@@ -48,11 +46,27 @@ class TransactionCard extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          '$catName · ${transaction.method.label}',
-          style: TextStyle(fontSize: compact ? 11 : 12, color: Colors.grey),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        subtitle: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$catName · ${transaction.method.label}',
+              style: TextStyle(
+                fontSize: compact ? 11 : 12,
+                color: Colors.grey,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (transaction.recurrence.isRecurring) ...[
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.repeat,
+                size: 14,
+                color: Colors.white,
+              ),
+            ],
+          ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -66,11 +80,6 @@ class TransactionCard extends StatelessWidget {
                 fontSize: compact ? 13 : 16,
               ),
             ),
-            if (transaction.recurrence.isRecurring)
-              const Badge(
-                label: Text('↺', style: TextStyle(fontSize: 10)),
-                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-              ),
           ],
         ),
       ),
@@ -85,30 +94,5 @@ class TransactionCard extends StatelessWidget {
         orElse: () => seedCategories.first,
       ),
     );
-  }
-
-  IconData _iconData(String iconName) {
-    IconData? iconData;
-    switch (iconName) {
-      case 'shopping_cart': iconData = Icons.shopping_cart; break;
-      case 'directions_car': iconData = Icons.directions_car; break;
-      case 'sports_esports': iconData = Icons.sports_esports; break;
-      case 'bolt': iconData = Icons.bolt; break;
-      case 'healing': iconData = Icons.healing; break;
-      case 'checkroom': iconData = Icons.checkroom; break;
-      case 'devices': iconData = Icons.devices; break;
-      case 'home': iconData = Icons.home; break;
-      case 'restaurant': iconData = Icons.restaurant; break;
-      case 'subscriptions': iconData = Icons.subscriptions; break;
-      case 'school': iconData = Icons.school; break;
-      case 'fitness_center': iconData = Icons.fitness_center; break;
-      case 'spa': iconData = Icons.spa; break;
-      case 'card_giftcard': iconData = Icons.card_giftcard; break;
-      case 'account_balance': iconData = Icons.account_balance; break;
-      case 'home_repair_service': iconData = Icons.home_repair_service; break;
-      case 'more_horiz': iconData = Icons.more_horiz; break;
-      case 'category': iconData = Icons.category; break;
-    }
-    return iconData ?? _defaultIcon;
   }
 }

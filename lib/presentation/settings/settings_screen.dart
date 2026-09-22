@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/budget_provider.dart';
 import '../../core/providers/month_balance_provider.dart';
-import '../../core/providers/selected_period_provider.dart';
 import '../../data/services/export_service.dart';
 import '../../domain/models/transaction.dart';
 
@@ -48,10 +47,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _runExport(Future<void> Function() exportAction) async {
+  Future<double> _getSaldoIniziale(int year, int month) async {
+    final snapshot = ref.read(monthBalanceProvider);
+    return snapshot.when(
+      data: (balance) => balance?.baselineAmount ?? 0.0,
+      loading: () => 0.0,
+      error: (_, _) => 0.0,
+    );
+  }
+
+  Future<void> _startExport(String format) async {
+    final result = await showDialog<_ExportSelection>(
+      context: context,
+      barrierDismissible: false,
+       builder: (ctx) => _ExportSelectionDialog(),
+    );
+
+    if (result == null) return;
+
+    final confirmedYear = result.year;
+    final confirmedMonth = result.month;
+
+    final transactions = ref.read(transactionsProvider).maybeWhen(
+          data: (list) => list
+              .where((tx) =>
+                  tx.date.year == confirmedYear &&
+                  tx.date.month == confirmedMonth)
+              .toList(),
+          orElse: () => const <AppTransaction>[],
+        );
+
+    final saldoIniziale =
+        await _getSaldoIniziale(confirmedYear, confirmedMonth);
+
     setState(() => _isExporting = true);
     try {
-      await exportAction();
+      if (format == 'csv') {
+        await _exportService.exportCsv(
+          transactions,
+          year: confirmedYear,
+          month: confirmedMonth,
+          saldoIniziale: saldoIniziale,
+        );
+      } else {
+        await _exportService.exportPdf(
+          transactions,
+          year: confirmedYear,
+          month: confirmedMonth,
+          saldoIniziale: saldoIniziale,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -64,42 +109,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _exportCsv() async {
-    final transactions = ref.read(transactionsProvider).maybeWhen(
-          data: (list) => list,
-          orElse: () => const <AppTransaction>[],
-        );
-    final period = ref.read(selectedPeriodProvider);
-    final saldoIniziale = await _getSaldoIniziale(period.year, period.month);
-    await _runExport(() => _exportService.exportCsv(
-          transactions,
-          year: period.year,
-          month: period.month,
-          saldoIniziale: saldoIniziale,
-        ));
+    await _startExport('csv');
   }
 
   Future<void> _exportPdf() async {
-    final transactions = ref.read(transactionsProvider).maybeWhen(
-          data: (list) => list,
-          orElse: () => const <AppTransaction>[],
-        );
-    final period = ref.read(selectedPeriodProvider);
-    final saldoIniziale = await _getSaldoIniziale(period.year, period.month);
-    await _runExport(() => _exportService.exportPdf(
-          transactions,
-          year: period.year,
-          month: period.month,
-          saldoIniziale: saldoIniziale,
-        ));
-  }
-
-  Future<double> _getSaldoIniziale(int year, int month) async {
-    final snapshot = ref.read(monthBalanceProvider);
-    return snapshot.when(
-      data: (balance) => balance?.baselineAmount ?? 0.0,
-      loading: () => 0.0,
-      error: (_, _) => 0.0,
-    );
+    await _startExport('pdf');
   }
 
   @override
@@ -205,8 +219,115 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     );
                   },
                 ),
-              ],
+            ],
+          ),
+    );
+  }
+}
+
+class _ExportSelection {
+  final int year;
+  final int month;
+
+  const _ExportSelection({required this.year, required this.month});
+}
+
+class _ExportSelectionDialog extends StatefulWidget {
+
+  @override
+  State<_ExportSelectionDialog> createState() => _ExportSelectionDialogState();
+}
+
+class _ExportSelectionDialogState extends State<_ExportSelectionDialog> {
+  final now = DateTime.now();
+  late int _selectedYear;
+  late int _selectedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedYear = now.year;
+    _selectedMonth = now.month;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const monthLabels = [
+      'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+      'Luglio', 'Aggosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+    ];
+
+    final yearItems = List.generate(11, (i) => now.year - 5 + i);
+
+    final monthItems = _selectedYear == now.year
+        ? List.generate(now.month, (i) => i + 1)
+        : List.generate(12, (i) => i + 1);
+
+    if (_selectedMonth > monthItems.length) {
+      _selectedMonth = monthItems.length;
+    }
+
+    return AlertDialog(
+      title: const Text('Seleziona periodo'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+           DropdownButtonFormField<int>(
+            initialValue: _selectedYear,
+            decoration: const InputDecoration(
+              labelText: 'Anno',
+              border: OutlineInputBorder(),
             ),
+            items: yearItems
+                .map((y) => DropdownMenuItem(value: y, child: Text(y.toString())))
+                .toList(),
+            onChanged: (int? val) {
+              if (val != null) {
+                setState(() {
+                  _selectedYear = val;
+                  if (_selectedMonth > monthItems.length) {
+                    _selectedMonth = monthItems.length;
+                  }
+                });
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+           DropdownButtonFormField<int>(
+            initialValue: _selectedMonth,
+            decoration: const InputDecoration(
+              labelText: 'Mese',
+              border: OutlineInputBorder(),
+            ),
+            items: monthItems
+                .map((m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(monthLabels[m - 1]),
+                    ))
+                .toList(),
+            onChanged: (int? val) {
+              if (val != null) {
+                setState(() => _selectedMonth = val);
+              }
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annulla'),
+        ),
+        FilledButton(
+          onPressed: _selectedMonth >= 1 && _selectedMonth <= 12
+              ? () => Navigator.pop(
+                  context,
+                  _ExportSelection(year: _selectedYear, month: _selectedMonth),
+                )
+              : null,
+          child: const Text('Esporta'),
+        ),
+      ],
     );
   }
 }
