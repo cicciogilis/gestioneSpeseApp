@@ -106,6 +106,7 @@ class _InitialBalanceConfigScreenState
 
     ref.invalidate(monthBalanceProvider);
     ref.invalidate(homeDataProvider);
+    ref.invalidate(transactionsProvider);
   }
 
   Future<void> _saveManual() async {
@@ -167,6 +168,7 @@ class _InitialBalanceConfigScreenState
 
     ref.invalidate(monthBalanceProvider);
     ref.invalidate(homeDataProvider);
+    ref.invalidate(transactionsProvider);
   }
 
   Future<bool> _confirmCascade() async {

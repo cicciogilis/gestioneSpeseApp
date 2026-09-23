@@ -146,6 +146,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    const Text('Totale Entrate'),
+                    Text('+${fmt.format(totalIncome)}',
+                        style: const TextStyle(color: Colors.green)),
+                  ],
+                ),
+                const Divider(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     const Text('Totale Uscite'),
                     Text('-${fmt.format(totalExpense)}',
                         style: const TextStyle(color: Colors.red)),
@@ -389,23 +398,26 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                            return const Text('');
                          }
                          final month = monthlyData[idx];
-                         final label = DateFormat('MMM')
-                             .format(DateTime.parse('$month-01'));
-                         // Show label only if different from the previous month's label
-                         // to avoid duplicate month names across years
-                         final prevLabel = idx > 0
-                             ? DateFormat('MMM')
-                                 .format(DateTime.parse('${monthlyData[idx - 1]}-01'))
-                             : null;
-                         if (prevLabel == label) {
-                           return const SizedBox.shrink();
-                         }
-                         return Padding(
-                           padding: const EdgeInsets.only(top: 8),
-                           child: Text(label,
-                               style: const TextStyle(fontSize: 10)),
-                         );
-                       },
+                          final monthDt =
+                              DateTime.parse('$month-01');
+                          final label = DateFormat('MMM')
+                              .format(monthDt);
+                          // When the month abbreviation is the same as the
+                          // previous one (e.g. Jan across different years),
+                          // append the year to keep labels distinguishable.
+                          final prevLabel = idx > 0
+                              ? DateFormat('MMM').format(
+                                  DateTime.parse('${monthlyData[idx - 1]}-01'))
+                              : null;
+                          final displayLabel = prevLabel == label
+                              ? DateFormat('MMM yy').format(monthDt)
+                              : label;
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(displayLabel,
+                                style: const TextStyle(fontSize: 10)),
+                          );
+                        },
                      ),
                    ),
                 ),

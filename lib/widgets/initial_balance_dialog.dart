@@ -83,27 +83,6 @@ class InitialBalanceDialog {
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () async {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setBool(_onboardingDoneKey, true);
-
-                final repo = ref.read(monthBalanceRepositoryProvider);
-                await repo.upsertMonthBalance(MonthBalance(
-                  year: now.year,
-                  month: now.month,
-                  baselineType: MonthBalance.baselineMonthStart,
-                  baselineDate: DateTime(now.year, now.month, 1),
-                  baselineAmount: 0.0,
-                ));
-
-                ref.invalidate(monthBalanceProvider);
-                ref.invalidate(homeDataProvider);
-
-                if (context.mounted) Navigator.of(context).pop();
-              },
-              child: const Text('Salta'),
-            ),
             FilledButton(
               onPressed: () async {
                 final value = double.tryParse(

@@ -331,6 +331,13 @@ class TransactionRepository {
     await _saveTransactions(prefs, filtered);
   }
 
+  Future<AppTransaction?> getTransactionById(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final transactions = await _loadTransactions(prefs);
+    final index = transactions.indexWhere((tx) => tx.id == id);
+    return index >= 0 ? transactions[index] : null;
+  }
+
   Future<void> deleteFutureRecurrences(String ricorrenzaId) async {
     final prefs = await SharedPreferences.getInstance();
     final transactions = await _loadTransactions(prefs);

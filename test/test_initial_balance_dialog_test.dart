@@ -95,24 +95,24 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('TEST: dialog saves 0.0 when skip button pressed',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: _TestBalanceGate(),
-          ),
-        ),
-      );
+     testWidgets('TEST-016: dialog is non-bypassable (no skip button)', (WidgetTester tester) async {
+       await tester.pumpWidget(
+         const ProviderScope(
+           child: MaterialApp(
+             home: _TestBalanceGate(),
+           ),
+         ),
+       );
 
-      await tester.pumpAndSettle();
+       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Salta'));
-      await tester.pumpAndSettle();
+       expect(find.text('Salta'), findsNothing);
+       expect(find.text('Conferma'), findsOneWidget);
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.containsKey('initialBalance_onboarding_done'), true);
-    });
+       final prefs = await SharedPreferences.getInstance();
+       expect(prefs.containsKey('initialBalance_onboarding_done'),
+           isFalse);
+     });
 
     test('TEST: getSaldoIniziale returns different values for different months',
         () async {

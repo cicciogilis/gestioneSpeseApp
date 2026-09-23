@@ -58,16 +58,31 @@ class TransactionListNotifier extends AsyncNotifier<List<AppTransaction>> {
 
   Future<void> addTransaction(AppTransaction tx) async {
     await _repository.addTransaction(tx);
+    ref.invalidate(monthBalanceProvider);
+    ref.invalidate(homeDataProvider);
     await loadTransactions();
   }
 
-  Future<void> deleteTransaction(String id) async {
+  Future<AppTransaction?> deleteTransaction(String id) async {
+    final tx = await _repository.getTransactionById(id);
     await _repository.deleteTransaction(id);
+    ref.invalidate(monthBalanceProvider);
+    ref.invalidate(homeDataProvider);
+    await loadTransactions();
+    return tx;
+  }
+
+  Future<void> restoreTransaction(AppTransaction tx) async {
+    await _repository.addTransaction(tx);
+    ref.invalidate(monthBalanceProvider);
+    ref.invalidate(homeDataProvider);
     await loadTransactions();
   }
 
   Future<void> deleteFutureRecurrences(String ricorrenzaId) async {
     await _repository.deleteFutureRecurrences(ricorrenzaId);
+    ref.invalidate(monthBalanceProvider);
+    ref.invalidate(homeDataProvider);
     await loadTransactions();
   }
 }

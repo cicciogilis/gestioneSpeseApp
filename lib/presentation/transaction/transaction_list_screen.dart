@@ -86,20 +86,47 @@ data: (transactions) {
               final tx = filtered[index];
 
               return Dismissible(
-                key: ValueKey(tx.id ?? UniqueKey().toString()),
+                key: ValueKey(tx.id ?? '${tx.date.toIso8601String()}_${tx.amount}_${tx.categoryId}'),
                 background: Container(
                   color: Colors.red,
                   alignment: Alignment.centerRight,
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
                 direction: DismissDirection.endToStart,
-                onDismissed: (direction) {
-                  setState(() {});
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Transazione eliminata dalla vista'),
-                    ),
-                  );
+                onDismissed: (direction) async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  AppTransaction? deleted;
+                  try {
+                    deleted = await ref
+                        .read(transactionsProvider.notifier)
+                        .deleteTransaction(tx.id!);
+                    messenger.hideCurrentSnackBar();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: const Text('Transazione eliminata'),
+                        action: deleted != null
+                            ? SnackBarAction(
+                                label: 'ANNULLA',
+                                onPressed: () {
+                                  ref
+                                      .read(transactionsProvider.notifier)
+                                      .restoreTransaction(deleted!);
+                                },
+                              )
+                            : null,
+                      ),
+                    );
+                  } catch (e) {
+                    await ref
+                        .read(transactionsProvider.notifier)
+                        .restoreTransaction(tx);
+                    messenger.hideCurrentSnackBar();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Errore: $e'),
+                      ),
+                    );
+                  }
                 },
                 child: ListTile(
                 leading: CircleAvatar(

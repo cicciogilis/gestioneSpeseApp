@@ -86,16 +86,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       _isProcessing = false;
       _processingStep = '';
     });
-
-    // Auto-process only when capturing from camera; gallery selection shows
-    // preview and lets the user tap ELABORA (see requirement Fix 10)
-    if (source == ImageSource.camera) {
-      setState(() {
-        _isProcessing = true;
-        _processingStep = 'Analisi dello scontrino...';
-      });
-      await _processImage(pathToProcess);
-    }
   }
 
   Future<void> _processImage(String path) async {

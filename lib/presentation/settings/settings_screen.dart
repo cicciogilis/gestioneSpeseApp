@@ -48,12 +48,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<double> _getSaldoIniziale(int year, int month) async {
-    final snapshot = ref.read(monthBalanceProvider);
-    return snapshot.when(
-      data: (balance) => balance?.baselineAmount ?? 0.0,
-      loading: () => 0.0,
-      error: (_, _) => 0.0,
-    );
+    final repo = ref.read(monthBalanceRepositoryProvider);
+    final balance = await repo.getMonthBalance(year, month);
+    return balance?.baselineAmount ?? 0.0;
   }
 
   Future<void> _startExport(String format) async {
