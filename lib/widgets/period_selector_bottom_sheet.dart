@@ -29,6 +29,8 @@ class _PeriodSelectorBottomSheetState extends ConsumerState<PeriodSelectorBottom
   late int _selectedYear;
   late int _selectedMonth;
   bool _yearConfirmed = false;
+  final Map<int, GlobalKey> _yearKeys = {};
+  bool _scrolledToCurrent = false;
 
   @override
   void initState() {
@@ -36,6 +38,31 @@ class _PeriodSelectorBottomSheetState extends ConsumerState<PeriodSelectorBottom
     final current = ref.read(selectedPeriodProvider);
     _selectedYear = current.year;
     _selectedMonth = current.month;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_scrolledToCurrent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToCurrentYear();
+      });
+      _scrolledToCurrent = true;
+    }
+  }
+
+  void _scrollToCurrentYear() {
+    final now = DateTime.now();
+    final key = _yearKeys[now.year];
+    final ctx = key?.currentContext;
+    if (ctx == null) return;
+
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.0,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+    );
   }
 
   void _onYearTapped(int year) {
@@ -108,6 +135,7 @@ class _PeriodSelectorBottomSheetState extends ConsumerState<PeriodSelectorBottom
                   final year = widget.availableYears[i];
                   final isSelected = year == _selectedYear && _yearConfirmed;
                   return ChoiceChip(
+                    key: _yearKeys.putIfAbsent(year, () => GlobalKey()),
                     label: Text(year.toString()),
                     selected: isSelected,
                     selectedColor: theme.colorScheme.primary,
@@ -181,9 +209,9 @@ class _PeriodSelectorBottomSheetState extends ConsumerState<PeriodSelectorBottom
                           child: Container(
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-color: isSelected
-    ? theme.colorScheme.primary
-    : theme.colorScheme.surfaceContainerHighest,
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -230,9 +258,10 @@ Future<void> openPeriodSelector({
   final availableYears = await TransactionRepository().getAvailableYears();
 
   final now = DateTime.now();
-  final futureYears =
-      List.generate(6, (i) => now.year + i); // now.year .. now.year + 5
-  final allYears = {...availableYears, ...futureYears}.toList()..sort();
+  final pastYears = List.generate(6, (i) => now.year - 1 - i);
+  final futureYears = List.generate(6, (i) => now.year + i);
+  final allYears = {...availableYears, ...pastYears, ...futureYears}.toList()
+    ..sort();
 
   if (!context.mounted) return;
 

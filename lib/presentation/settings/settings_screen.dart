@@ -251,7 +251,7 @@ class _ExportSelectionDialogState extends State<_ExportSelectionDialog> {
   Widget build(BuildContext context) {
     const monthLabels = [
       'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-      'Luglio', 'Aggosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
     ];
 
     final yearItems = List.generate(11, (i) => now.year - 5 + i);

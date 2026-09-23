@@ -20,11 +20,10 @@ class _InitialBalanceConfigScreenState
   late int _selectedMonth;
   final _amountCtrl = TextEditingController();
   bool _isLoading = false;
-  bool _useCurrentDay = false;
 
-  static const List<String> _monthLabels = [
-    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+  static const List<String> _monthLabelsShort = [
+    'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
+    'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic',
   ];
 
   @override
@@ -53,12 +52,10 @@ class _InitialBalanceConfigScreenState
     if (balance != null) {
       setState(() {
         _amountCtrl.text = balance.baselineAmount.toStringAsFixed(2);
-        _useCurrentDay = balance.isCurrentDay;
       });
     } else {
       setState(() {
         _amountCtrl.text = '';
-        _useCurrentDay = false;
       });
     }
   }
@@ -69,15 +66,9 @@ class _InitialBalanceConfigScreenState
     await _loadExistingBalance();
   }
 
-  void _onMonthChanged(int? month) async {
-    if (month == null) return;
+  void _onMonthTapped(int month) async {
     setState(() => _selectedMonth = month);
     await _loadExistingBalance();
-  }
-
-  bool _isCurrentMonth() {
-    final now = DateTime.now();
-    return _selectedYear == now.year && _selectedMonth == now.month;
   }
 
   Future<void> _recalcAuto() async {
@@ -131,21 +122,11 @@ class _InitialBalanceConfigScreenState
     try {
       final repo = ref.read(monthBalanceRepositoryProvider);
 
-      final now = DateTime.now();
-      final isCurrentMonth = _selectedYear == now.year && _selectedMonth == now.month;
-      final effectiveUseCurrentDay = _useCurrentDay && isCurrentMonth;
-      final baselineType = effectiveUseCurrentDay
-          ? MonthBalance.baselineCurrentDay
-          : MonthBalance.baselineMonthStart;
-      final baselineDate = effectiveUseCurrentDay
-          ? DateTime(now.year, now.month, now.day)
-          : DateTime(_selectedYear, _selectedMonth, 1);
-
       await repo.upsertMonthBalance(MonthBalance(
         year: _selectedYear,
         month: _selectedMonth,
-        baselineType: baselineType,
-        baselineDate: baselineDate,
+        baselineType: MonthBalance.baselineMonthStart,
+        baselineDate: DateTime(_selectedYear, _selectedMonth, 1),
         baselineAmount: value,
       ));
 
@@ -204,9 +185,6 @@ class _InitialBalanceConfigScreenState
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final maxMonth = _selectedYear == now.year ? now.month : 12;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Configurazione Saldo Iniziale'),
@@ -216,7 +194,7 @@ class _InitialBalanceConfigScreenState
           : FutureBuilder<List<int>>(
               future: _loadAvailableYears(),
               builder: (context, snapshot) {
-                final years = snapshot.data ?? [now.year];
+                final years = snapshot.data ?? [DateTime.now().year];
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -228,7 +206,27 @@ class _InitialBalanceConfigScreenState
                     const SizedBox(height: 8),
                     _buildYearDropdown(years),
                     const SizedBox(height: 16),
-                    _buildMonthDropdown(maxMonth),
+                    _buildMonthButtons(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Ricalcolo automatico',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Saldo iniziale = saldo iniziale mese precedente + entrate - uscite',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildActionCard(
+                      title: 'Ricalcolo automatico',
+                      description:
+                          'Calcola il saldo iniziale basandosi sui dati del mese precedente',
+                      icon: Icons.auto_awesome,
+                      color: Colors.blue,
+                      onPressed: _recalcAuto,
+                    ),
                     const SizedBox(height: 24),
                     const Text(
                       'Impostazione manuale',
@@ -243,51 +241,19 @@ class _InitialBalanceConfigScreenState
                       decoration: InputDecoration(
                         prefixText: '€ ',
                         labelText: 'Saldo iniziale',
-                        hintText: 'Importo al ${DateFormat('dd MMMM', 'it_IT').format(DateTime(_selectedYear, _selectedMonth, 1))}',
+                        hintText:
+                            'Importo al ${DateFormat('dd MMMM', 'it_IT').format(DateTime(_selectedYear, _selectedMonth, 1))}',
                         border: const OutlineInputBorder(),
                       ),
                     ),
-                    if (_isCurrentMonth())
-                      CheckboxListTile(
-                        title: const Text('Usa saldo del giorno corrente'),
-                        subtitle: const Text(
-                          'Le transazioni precedenti a oggi non verranno conteggiate.',
-                        ),
-                        value: _useCurrentDay,
-                        onChanged: (val) {
-                          setState(() => _useCurrentDay = val ?? false);
-                        },
-                      ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Ricalcolo automatico',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Saldo iniziale = saldo iniziale mese precedente + entrate - uscite',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                    ),
-                    const SizedBox(height: 16),
-                    Column(
-                      children: [
-                        _buildActionCard(
-                          title: 'Ricalcolo automatico',
-                          description: 'Calcola il saldo iniziale basandosi sui dati del mese precedente',
-                          icon: Icons.auto_awesome,
-                          color: Colors.blue,
-                          onPressed: _recalcAuto,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildActionCard(
-                          title: 'Salva manuale',
-                          description: 'Imposta manualmente il saldo iniziale del mese selezionato',
-                          icon: Icons.save,
-                          color: Colors.green,
-                          onPressed: _saveManual,
-                        ),
-                      ],
+                    _buildActionCard(
+                      title: 'Salva manuale',
+                      description:
+                          'Imposta manualmente il saldo iniziale del mese selezionato',
+                      icon: Icons.save,
+                      color: Colors.green,
+                      onPressed: _saveManual,
                     ),
                   ],
                 );
@@ -310,18 +276,42 @@ class _InitialBalanceConfigScreenState
     );
   }
 
-  Widget _buildMonthDropdown(int maxMonth) {
-    final effectiveMonth = _selectedMonth > maxMonth ? maxMonth : _selectedMonth;
-    return DropdownButtonFormField<int>(
-      initialValue: effectiveMonth,
-      items: List.generate(maxMonth, (i) => i + 1).map((m) {
-        return DropdownMenuItem(value: m, child: Text(_monthLabels[m - 1]));
-      }).toList(),
-      onChanged: _onMonthChanged,
-      decoration: const InputDecoration(
-        labelText: 'Mese',
-        border: OutlineInputBorder(),
-      ),
+  Widget _buildMonthButtons() {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(12, (i) {
+        final month = i + 1;
+        final selected = month == _selectedMonth;
+        return SizedBox(
+          width: 80,
+          child: InkWell(
+            onTap: () => _onMonthTapped(month),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? primary : Colors.grey.shade100,
+                border: Border.all(
+                  color: selected ? primary : Colors.grey.shade300,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _monthLabelsShort[i],
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight:
+                      selected ? FontWeight.bold : FontWeight.normal,
+                  color: selected ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 
