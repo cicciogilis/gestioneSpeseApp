@@ -8,6 +8,7 @@ import '../../core/providers/selected_period_provider.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../domain/models/transaction.dart';
 import '../../utils/category_utils.dart';
+import '../../widgets/transaction_card.dart';
 
 class TransactionListScreen extends ConsumerStatefulWidget {
   const TransactionListScreen({super.key});
@@ -32,10 +33,27 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () => showSearch(
-              context: context,
-              delegate: TransactionSearchDelegate(ref),
-            ),
+            onPressed: () async {
+              final transactions = asyncValue.maybeWhen(
+                data: (list) => list,
+                orElse: () => <AppTransaction>[],
+              );
+              final selectedTransaction = await showSearch<AppTransaction?>(
+                context: context,
+                delegate: TransactionSearchDelegate(allTransactions: transactions),
+              );
+
+              if (selectedTransaction != null && context.mounted) {
+                context.push('/add', extra: {
+                  'amount': selectedTransaction.amount,
+                  'date': selectedTransaction.date.toIso8601String().split('T').first,
+                  'category': selectedTransaction.categoryId,
+                  'title': transactionTitle(selectedTransaction.description, selectedTransaction.categoryId),
+                  'method': selectedTransaction.method.name,
+                  'description': selectedTransaction.description,
+                });
+              }
+            },
           ),
           IconButton(
             icon: const Icon(Icons.tune),
@@ -430,57 +448,84 @@ data: (transactions) {
   }
 }
 
-class TransactionSearchDelegate extends SearchDelegate<String> {
-  final WidgetRef ref;
+class TransactionSearchDelegate extends SearchDelegate<AppTransaction?> {
+  final List<AppTransaction> allTransactions;
 
-  TransactionSearchDelegate(this.ref);
+  TransactionSearchDelegate({required this.allTransactions});
 
   @override
-  List<Widget> buildActions(BuildContext context) {
+  String get searchFieldLabel => 'Cerca transazione...';
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
     return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () => query = '',
-      ),
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.clear),
+          onPressed: () {
+            query = '';
+            showSuggestions(context);
+          },
+        ),
     ];
   }
 
   @override
-  Widget buildLeading(BuildContext context) {
+  Widget? buildLeading(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.arrow_back),
-      onPressed: () => close(context, ''),
+      onPressed: () => close(context, null),
     );
+  }
+
+  List<AppTransaction> _filterTransactions(String searchQuery) {
+    if (searchQuery.trim().isEmpty) return [];
+
+    final lowerQuery = searchQuery.toLowerCase().trim();
+    return allTransactions.where((tx) {
+      final title = transactionTitle(tx.description, tx.categoryId).toLowerCase();
+      final category = categoryDisplayName(tx.categoryId).toLowerCase();
+      final rawCategoryId = tx.categoryId.toLowerCase();
+      final method = tx.method.label.toLowerCase();
+
+      return title.contains(lowerQuery) ||
+          category.contains(lowerQuery) ||
+          rawCategoryId.contains(lowerQuery) ||
+          method.contains(lowerQuery);
+    }).toList();
   }
 
   @override
   Widget buildResults(BuildContext context) {
-    final suggestions = ref.read(transactionsProvider).when(
-          loading: () => <AppTransaction>[],
-          error: (err, stack) => <AppTransaction>[],
-          data: (list) => list
-              .where(
-                (tx) =>
-                    (tx.description
-                            ?.toLowerCase()
-                            .contains(query.toLowerCase()) ??
-                        false) ||
-                    tx.categoryId.toLowerCase().contains(query.toLowerCase()),
-              )
-              .toList(),
-        );
+    final results = _filterTransactions(query);
+
+    if (results.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'Nessuna transazione trovata per "$query"',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView.builder(
-      itemCount: suggestions.length,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: results.length,
       itemBuilder: (context, index) {
-        final tx = suggestions[index];
-
-        return ListTile(
-            title: Text(transactionTitle(tx.description, tx.categoryId)),
-          subtitle: Text(DateFormat('dd MMM yy').format(tx.date)),
-          trailing: Text(
-            NumberFormat.simpleCurrency(locale: 'it_IT').format(tx.amount),
-          ),
+        final tx = results[index];
+        return TransactionCard(
+          transaction: tx,
+          onTap: () => close(context, tx),
         );
       },
     );
@@ -488,6 +533,49 @@ class TransactionSearchDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    return buildResults(context);
+    final suggestions = _filterTransactions(query);
+
+    if (query.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'Cerca per titolo, categoria o note',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (suggestions.isEmpty) {
+      return Center(
+        child: Text(
+          'Nessun suggerimento per "$query"',
+          style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: suggestions.length,
+      itemBuilder: (context, index) {
+        final tx = suggestions[index];
+        return TransactionCard(
+          transaction: tx,
+          onTap: () {
+            query = transactionTitle(tx.description, tx.categoryId);
+            showResults(context);
+          },
+        );
+      },
+    );
   }
 }

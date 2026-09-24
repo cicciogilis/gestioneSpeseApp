@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/providers/app_providers.dart';
 import '../../core/providers/month_balance_provider.dart';
@@ -19,7 +19,9 @@ class _InitialBalanceConfigScreenState
   late int _selectedYear;
   late int _selectedMonth;
   final _amountCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _isSaving = false;
 
   static const List<String> _monthLabelsShort = [
     'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
@@ -38,6 +40,28 @@ class _InitialBalanceConfigScreenState
   void dispose() {
     _amountCtrl.dispose();
     super.dispose();
+  }
+
+  /// Normalizza virgola -> punto e parsing sicuro
+  double? _parseAmount(String input) {
+    if (input.trim().isEmpty) return null;
+    final normalized = input.trim().replaceAll(',', '.');
+    return double.tryParse(normalized);
+  }
+
+  /// Validazione dell'input
+  String? _validateAmount(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Inserisci un importo';
+    }
+    final amount = _parseAmount(value);
+    if (amount == null) {
+      return 'Importo non valido. Usa formato: 1234.56 o 1234,56';
+    }
+    if (amount < -999999.99 || amount > 999999.99) {
+      return 'Importo fuori dal range consentito (-999.999,99 ÷ 999.999,99)';
+    }
+    return null;
   }
 
   Future<List<int>> _loadAvailableYears() async {
@@ -101,55 +125,84 @@ class _InitialBalanceConfigScreenState
   }
 
   Future<void> _saveManual() async {
-    final value = double.tryParse(_amountCtrl.text.replaceAll(',', '.'));
-    if (value == null || _amountCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inserisci un importo valido')),
-      );
-      return;
-    }
-    if (value.abs() > 9999999) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Importo troppo grande')),
-      );
+    if (!_formKey.currentState!.validate()) return;
+
+    final amount = _parseAmount(_amountCtrl.text);
+    if (amount == null) {
+      _showErrorDialog('Impossibile interpretare l\'importo inserito.');
       return;
     }
 
-    final confirmed = await _confirmCascade();
-    if (!confirmed) return;
+    setState(() => _isSaving = true);
 
-    setState(() => _isLoading = true);
     try {
       final repo = ref.read(monthBalanceRepositoryProvider);
-
       await repo.upsertMonthBalance(MonthBalance(
         year: _selectedYear,
         month: _selectedMonth,
         baselineType: MonthBalance.baselineMonthStart,
         baselineDate: DateTime(_selectedYear, _selectedMonth, 1),
-        baselineAmount: value,
+        baselineAmount: amount,
       ));
 
       await repo.recalcCascadeFrom(_selectedYear, _selectedMonth);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saldo iniziale salvato')),
+          SnackBar(
+            content: Text(
+              'Saldo iniziale di €${amount.toStringAsFixed(2)} salvato '
+              'per ${_monthName(_selectedMonth)} $_selectedYear',
+            ),
+            backgroundColor: const Color(0xFF4CAF50),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
         );
+
+        _amountCtrl.clear();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore nel salvataggio: $e')),
+        _showErrorDialog(
+          'Errore durante il salvataggio del saldo iniziale:\n${e.toString()}',
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
 
     ref.invalidate(monthBalanceProvider);
     ref.invalidate(homeDataProvider);
     ref.invalidate(transactionsProvider);
+  }
+
+  /// Utility: nome mese in italiano
+  String _monthName(int month) {
+    const mesi = [
+      '', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+    ];
+    return mesi[month];
+  }
+
+  /// Dialog di errore
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Errore'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _confirmCascade() async {
@@ -198,12 +251,6 @@ class _InitialBalanceConfigScreenState
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    const Text(
-                      'Seleziona mese',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
                     _buildYearDropdown(years),
                     const SizedBox(height: 16),
                     _buildMonthButtons(),
@@ -234,26 +281,50 @@ class _InitialBalanceConfigScreenState
                           fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: _amountCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        prefixText: '€ ',
-                        labelText: 'Saldo iniziale',
-                        hintText:
-                            'Importo al ${DateFormat('dd MMMM', 'it_IT').format(DateTime(_selectedYear, _selectedMonth, 1))}',
-                        border: const OutlineInputBorder(),
+                    Form(
+                      key: _formKey,
+                      child: TextFormField(
+                        controller: _amountCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Saldo iniziale (€)',
+                          hintText: 'Es: 1500,00',
+                          prefixIcon: Icon(Icons.euro),
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^-?[0-9]*[.,]?[0-9]*$'),
+                          ),
+                        ],
+                        validator: _validateAmount,
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _buildActionCard(
-                      title: 'Salva manuale',
-                      description:
-                          'Imposta manualmente il saldo iniziale del mese selezionato',
-                      icon: Icons.save,
-                      color: Colors.green,
-                      onPressed: _saveManual,
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _saveManual,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(_isSaving ? 'Salvataggio...' : 'Salva Saldo'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4CAF50),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ),
                   ],
                 );

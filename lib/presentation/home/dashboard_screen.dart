@@ -7,6 +7,7 @@ import '../../core/providers/budget_provider.dart';
 import '../../core/providers/selected_period_provider.dart';
 import '../../widgets/period_selector_bottom_sheet.dart';
 import '../../widgets/transaction_card.dart';
+import '../../widgets/saving_goal_bar.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -76,6 +77,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
           const SizedBox(height: 8),
           _buildBudgetMonthlyCard(homeData, budget, fmt),
+          const SizedBox(height: 24),
+          const SavingGoalBar(),
           const SizedBox(height: 24),
           const Text(
             'ULTIME TRANSAZIONI',
@@ -188,8 +191,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               budget.globalLimit,
               fmt,
             ),
-            const SizedBox(height: 16),
-            _buildSavingGoalBar(homeData, budget, fmt),
           ],
         ),
       ),
@@ -198,9 +199,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildBudgetBar(
       double pct, double current, double limit, NumberFormat fmt) {
-    Color progressColor = Colors.green;
-    if (pct > 0.7 && pct <= 0.9) progressColor = Colors.orange;
-    if (pct > 0.9) progressColor = Colors.red;
+    const Color budgetColor = Color(0xFFF44336); // ROSSO
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -209,7 +208,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           value: pct,
           minHeight: 12,
           backgroundColor: Colors.grey.shade200,
-          valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+          valueColor: const AlwaysStoppedAnimation<Color>(budgetColor),
           borderRadius: BorderRadius.circular(6),
         ),
         const SizedBox(height: 8),
@@ -219,83 +218,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Text(
               'Budget di spesa',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: progressColor),
+                  fontWeight: FontWeight.bold, color: budgetColor),
             ),
             Text(
               '${fmt.format(current)} / ${fmt.format(limit)}',
-              style: const TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSavingGoalBar(
-      HomeData homeData, BudgetSettings budget, NumberFormat fmt) {
-    final savingGoal = budget.savingGoal;
-
-    if (savingGoal <= 0) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LinearProgressIndicator(
-            value: 0,
-            minHeight: 12,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.grey.shade400),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Obiettivo di risparmio',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.grey[600]),
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: budgetColor,
               ),
-              Text(
-                'Non configurato',
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    final shortfall = (homeData.uscite - homeData.entrate).clamp(0.0, double.infinity);
-    final protectedAmount = (savingGoal - shortfall).clamp(0.0, savingGoal);
-    final pct = protectedAmount / savingGoal;
-
-    final bool fullyProtected = pct >= 1.0;
-    final Color barColor = fullyProtected
-        ? Colors.green.shade700
-        : (pct <= 0.0 ? Colors.red.shade700 : Colors.green.shade600);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        LinearProgressIndicator(
-          value: pct,
-          minHeight: 12,
-          backgroundColor: Colors.red.shade50,
-          valueColor: AlwaysStoppedAnimation<Color>(barColor),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Obiettivo di risparmio',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, color: barColor),
-            ),
-            Text(
-              '${(pct * 100).toStringAsFixed(0)}% — ${fmt.format(protectedAmount)} / ${fmt.format(savingGoal)}',
-              style: const TextStyle(color: Colors.grey),
             ),
           ],
         ),

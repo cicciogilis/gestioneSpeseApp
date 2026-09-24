@@ -256,13 +256,7 @@ class _ExportSelectionDialogState extends State<_ExportSelectionDialog> {
 
     final yearItems = List.generate(11, (i) => now.year - 5 + i);
 
-    final monthItems = _selectedYear == now.year
-        ? List.generate(now.month, (i) => i + 1)
-        : List.generate(12, (i) => i + 1);
-
-    if (_selectedMonth > monthItems.length) {
-      _selectedMonth = monthItems.length;
-    }
+    final monthItems = List.generate(12, (i) => i + 1);
 
     return AlertDialog(
       title: const Text('Seleziona periodo'),
@@ -270,45 +264,42 @@ class _ExportSelectionDialogState extends State<_ExportSelectionDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
            DropdownButtonFormField<int>(
-            initialValue: _selectedYear,
-            decoration: const InputDecoration(
-              labelText: 'Anno',
-              border: OutlineInputBorder(),
-            ),
-            items: yearItems
-                .map((y) => DropdownMenuItem(value: y, child: Text(y.toString())))
-                .toList(),
-            onChanged: (int? val) {
-              if (val != null) {
-                setState(() {
-                  _selectedYear = val;
-                  if (_selectedMonth > monthItems.length) {
-                    _selectedMonth = monthItems.length;
-                  }
-                });
-              }
-            },
-          ),
-          const SizedBox(height: 16),
+             initialValue: _selectedYear,
+             decoration: const InputDecoration(
+               labelText: 'Anno',
+               border: OutlineInputBorder(),
+             ),
+             items: yearItems
+                 .map((y) => DropdownMenuItem(value: y, child: Text(y.toString())))
+                 .toList(),
+             onChanged: (int? val) {
+               if (val != null) {
+                 setState(() {
+                   _selectedYear = val;
+                 });
+               }
+             },
+           ),
+           const SizedBox(height: 16),
            DropdownButtonFormField<int>(
-            initialValue: _selectedMonth,
-            decoration: const InputDecoration(
-              labelText: 'Mese',
-              border: OutlineInputBorder(),
-            ),
-            items: monthItems
-                .map((m) => DropdownMenuItem(
-                      value: m,
-                      child: Text(monthLabels[m - 1]),
-                    ))
-                .toList(),
-            onChanged: (int? val) {
-              if (val != null) {
-                setState(() => _selectedMonth = val);
-              }
-            },
-          ),
-        ],
+             initialValue: _selectedMonth,
+             decoration: const InputDecoration(
+               labelText: 'Mese',
+               border: OutlineInputBorder(),
+             ),
+             items: monthItems
+                 .map((m) => DropdownMenuItem(
+                       value: m,
+                       child: Text(monthLabels[m - 1]),
+                     ))
+                 .toList(),
+             onChanged: (int? val) {
+               if (val != null) {
+                 setState(() => _selectedMonth = val);
+               }
+             },
+           ),
+         ],
       ),
       actions: [
         TextButton(
