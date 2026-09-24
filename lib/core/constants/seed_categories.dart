@@ -21,4 +21,6 @@ const List<AppCategory> seedCategories = [
   AppCategory(id: 'cat_stipendio', name: 'Stipendio', icon: 'card_giftcard', color: 0xFFFFC107, type: CategoryType.income),
   AppCategory(id: 'cat_regalo', name: 'Regalo', icon: 'card_giftcard', color: 0xFFFFC107, type: CategoryType.income),
   AppCategory(id: 'cat_rimborso', name: 'Rimborso', icon: 'card_giftcard', color: 0xFFFFC107, type: CategoryType.income),
+  // Special: Saldo Iniziale (used for onboarding "Saldo corrente" option)
+  AppCategory(id: 'cat_saldo_iniziale', name: 'Saldo Iniziale', icon: 'account_balance_wallet', color: 0xFF4CAF50, type: CategoryType.income),
 ];

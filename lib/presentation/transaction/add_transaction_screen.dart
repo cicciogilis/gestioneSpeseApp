@@ -101,7 +101,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   @override
   Widget build(BuildContext context) {
     final availableCategories =
-      seedCategories.where((c) => c.type.name == _selectedType.name).toList();
+      seedCategories.where((c) => c.type.name == _selectedType.name && c.id != 'cat_saldo_iniziale').toList();
 
     return Scaffold(
       appBar: AppBar(

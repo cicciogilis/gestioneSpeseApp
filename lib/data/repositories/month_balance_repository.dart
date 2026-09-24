@@ -69,7 +69,7 @@ class MonthBalanceRepositoryImpl implements MonthBalanceRepository {
     int cy = year;
     int cm = month;
 
-    for (int i = 0; i < 36; i++) {
+    for (int i = 0; i < 60; i++) { // 60 mesi = 5 anni
       final prevYear = cm == 1 ? cy - 1 : cy;
       final prevMonth = cm == 1 ? 12 : cm - 1;
 

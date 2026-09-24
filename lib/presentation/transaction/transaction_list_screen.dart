@@ -98,10 +98,143 @@ data: (transactions) {
             return const Center(child: Text('Nessuna transazione trovata'));
           }
 
-          return ListView.builder(
+return ListView.builder(
             itemCount: filtered.length,
             itemBuilder: (context, index) {
               final tx = filtered[index];
+              final isInitialBalance = tx.isInitialBalance;
+
+              Widget tileContent = ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: (() {
+                    final cat = seedCategories.firstWhere(
+                      (c) => c.id == tx.categoryId,
+                      orElse: () => seedCategories.firstWhere(
+                        (c) => c.id == 'cat_altro',
+                        orElse: () => seedCategories.first,
+                      ),
+                    );
+                    return Color(cat.color);
+                  })(),
+                  child: Icon(
+                    () {
+                      final cat = seedCategories.firstWhere(
+                        (c) => c.id == tx.categoryId,
+                        orElse: () => seedCategories.firstWhere(
+                          (c) => c.id == 'cat_altro',
+                          orElse: () => seedCategories.first,
+                        ),
+                      );
+                      return cat.iconData;
+                    }(),
+                    color: Colors.white,
+                  ),
+                ),
+                title: Text(
+                  transactionTitle(tx.description, tx.categoryId),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          categoryDisplayName(tx.categoryId),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        if (isInitialBalance) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Iniziale',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Text(DateFormat('dd MMM yy').format(tx.date)),
+                        const SizedBox(width: 8),
+                        Icon(
+                          tx.method.icon,
+                          size: 12,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          tx.method.label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        if (tx.recurrence.isRecurring) ...[
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.repeat,
+                            size: 12,
+                            color: Colors.grey,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (tx.recurrence.isRecurring && tx.ricorrenzaId != null && !isInitialBalance)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.settings,
+                          size: 20,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () => _showRecurrenceBottomSheet(tx),
+                      ),
+                    Text(
+                      (tx.type == TransactionType.expense ? '-' : '+') +
+                          NumberFormat.simpleCurrency(locale: 'it_IT')
+                              .format(tx.amount),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: tx.type == TransactionType.expense
+                            ? Colors.red
+                            : Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+                onTap: isInitialBalance
+                      ? null
+                      : () => context.push('/add', extra: {
+                          'amount': tx.amount,
+                          'date': tx.date.toIso8601String().split('T').first,
+                          'category': tx.categoryId,
+                          'title': transactionTitle(tx.description, tx.categoryId),
+                          'method': tx.method.name,
+                          'description': tx.description,
+                        }),
+              );
+
+              if (isInitialBalance) {
+                return tileContent;
+              }
 
               return Dismissible(
                 key: ValueKey(tx.id ?? '${tx.date.toIso8601String()}_${tx.amount}_${tx.categoryId}'),
@@ -146,101 +279,7 @@ data: (transactions) {
                     );
                   }
                 },
-                child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: (() {
-                    final cat = seedCategories.firstWhere(
-                      (c) => c.id == tx.categoryId,
-                      orElse: () => seedCategories.firstWhere(
-                        (c) => c.id == 'cat_altro',
-                        orElse: () => seedCategories.first,
-                      ),
-                    );
-                    return Color(cat.color);
-                  })(),
-                  child: Icon(
-                    () {
-                      final cat = seedCategories.firstWhere(
-                        (c) => c.id == tx.categoryId,
-                        orElse: () => seedCategories.firstWhere(
-                          (c) => c.id == 'cat_altro',
-                          orElse: () => seedCategories.first,
-                        ),
-                      );
-                      return cat.iconData;
-                    }(),
-                    color: Colors.white,
-                  ),
-                ),
-                   title: Text(
-                     transactionTitle(tx.description, tx.categoryId),
-                     style: const TextStyle(fontWeight: FontWeight.w600),
-                   ),
-                   subtitle: Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Text(
-                         categoryDisplayName(tx.categoryId),
-                         style: const TextStyle(
-                           fontSize: 12,
-                           color: Colors.grey,
-                         ),
-                       ),
-                      Row(
-                        children: [
-                          Text(DateFormat('dd MMM yy').format(tx.date)),
-                          const SizedBox(width: 8),
-                          Icon(
-                            tx.method.icon,
-                            size: 12,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            tx.method.label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          if (tx.recurrence.isRecurring) ...[
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.repeat,
-                              size: 12,
-                              color: Colors.grey,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (tx.recurrence.isRecurring && tx.ricorrenzaId != null)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.settings,
-                            size: 20,
-                            color: Colors.grey,
-                          ),
-                          onPressed: () => _showRecurrenceBottomSheet(tx),
-                        ),
-                      Text(
-                        (tx.type == TransactionType.expense ? '-' : '+') +
-                            NumberFormat.simpleCurrency(locale: 'it_IT')
-                                .format(tx.amount),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: tx.type == TransactionType.expense
-                              ? Colors.red
-                              : Colors.green,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                child: tileContent,
               );
             },
           );

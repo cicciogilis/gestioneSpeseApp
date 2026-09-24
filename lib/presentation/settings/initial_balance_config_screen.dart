@@ -145,7 +145,10 @@ class _InitialBalanceConfigScreenState
         baselineAmount: amount,
       ));
 
-      await repo.recalcCascadeFrom(_selectedYear, _selectedMonth);
+      // Ricalcola a cascata i mesi SUCCESSIVI (non tocca il mese appena salvato)
+      final nextMonth = _selectedMonth == 12 ? 1 : _selectedMonth + 1;
+      final nextYear = _selectedMonth == 12 ? _selectedYear + 1 : _selectedYear;
+      await repo.recalcCascadeFrom(nextYear, nextMonth);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

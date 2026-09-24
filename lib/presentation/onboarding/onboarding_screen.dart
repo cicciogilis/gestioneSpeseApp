@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../widgets/onboarding_balance_choice_dialog.dart';
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -31,12 +32,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
   ];
 
-  Future<void> _completeOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_done', true);
-    if (mounted) {
-      context.go('/');
-    }
+  void _showBalanceChoiceDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => OnboardingBalanceChoiceDialog(
+        onConfirm: (choice, amount) async {
+          // onboarding_done is set inside the dialog's onConfirm
+          if (mounted) {
+            context.go('/');
+          }
+        },
+      ),
+    );
   }
 
   void _nextPage() {
@@ -46,7 +54,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      _completeOnboarding();
+      _showBalanceChoiceDialog();
     }
   }
 
@@ -113,7 +121,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Row(
                 children: [
                   TextButton(
-                    onPressed: _completeOnboarding,
+                    onPressed: _showBalanceChoiceDialog,
                     child: const Text('Salta'),
                   ),
                   const Spacer(),

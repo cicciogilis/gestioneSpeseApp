@@ -125,6 +125,7 @@ class HomeDataNotifier extends AsyncNotifier<HomeData> {
     double totalIncome = 0;
     double totalExpense = 0;
     for (final tx in transactions) {
+      if (tx.isInitialBalance) continue; // Exclude initial balance transaction from totals
       if (tx.type == TransactionType.income) {
         totalIncome += tx.amount;
       } else if (tx.type == TransactionType.expense) {

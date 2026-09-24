@@ -15,6 +15,9 @@ const List<String> _monthLabels = [
 class InitialBalanceDialog {
   static const String _onboardingDoneKey = 'initialBalance_onboarding_done';
 
+  /// @deprecated Use the new onboarding flow with OnboardingBalanceChoiceDialog instead.
+  /// This method is kept for backward compatibility but is no longer called automatically.
+  @Deprecated('Use OnboardingBalanceChoiceDialog in onboarding flow')
   static Future<void> showIfNeeded(BuildContext context, WidgetRef ref) async {
     final prefs = await SharedPreferences.getInstance();
     final done = prefs.getBool(_onboardingDoneKey) ?? false;

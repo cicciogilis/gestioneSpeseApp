@@ -42,7 +42,6 @@ class SpesApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          InitialBalanceDialog.showIfNeeded(context, ref);
           InitialBalanceDialog.showMonthAutoBalanceMessage(context, ref);
         });
         return child!;

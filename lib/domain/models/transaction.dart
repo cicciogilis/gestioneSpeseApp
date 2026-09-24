@@ -67,6 +67,7 @@ class AppTransaction {
   final String? aiSummary;
   final Recurrence recurrence;
   final String? ricorrenzaId;
+  final bool isInitialBalance;
 
   const AppTransaction({
     this.id,
@@ -79,6 +80,7 @@ class AppTransaction {
     this.aiSummary,
     this.recurrence = Recurrence.none,
     this.ricorrenzaId,
+    this.isInitialBalance = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -93,6 +95,7 @@ class AppTransaction {
       'ai_summary': aiSummary,
       'recurrence': recurrence.name.toUpperCase(),
       'ricorrenza_id': ricorrenzaId,
+      'is_initial_balance': isInitialBalance,
     };
   }
 
@@ -114,6 +117,7 @@ class AppTransaction {
         orElse: () => Recurrence.none,
       ),
       ricorrenzaId: map['ricorrenza_id'],
+      isInitialBalance: map['is_initial_balance'] ?? false,
     );
   }
 
