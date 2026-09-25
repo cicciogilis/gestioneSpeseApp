@@ -259,13 +259,13 @@ class _InitialBalanceConfigScreenState
                     _buildMonthButtons(),
                     const SizedBox(height: 24),
                     const Text(
-                      'Ricalcolo automatico',
+                      'Ricalcolo Automatico',
                       style: TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Saldo iniziale = saldo iniziale mese precedente + entrate - uscite',
+                      'Il saldo iniziale del mese selezionato viene calcolato sommando al saldo iniziale del mese precedente le relative uscite ed entrate totali',
                       style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     ),
                     const SizedBox(height: 16),
@@ -279,7 +279,7 @@ class _InitialBalanceConfigScreenState
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Impostazione manuale',
+                      'Impostazione Manuale',
                       style: TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w600),
                     ),
