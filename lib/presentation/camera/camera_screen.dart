@@ -224,7 +224,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             icon: const Icon(Icons.camera_alt),
             label: const Text('SCATTA FOTO'),
             style: ElevatedButton.styleFrom(
-              minimumSize: const Size.fromHeight(50),
+              fixedSize: const Size(250, 50),
             ),
           ),
           const SizedBox(height: 16),
@@ -233,7 +233,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             icon: const Icon(Icons.photo_library),
             label: const Text('SCEGLI DA GALLERIA'),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(50),
+              fixedSize: const Size(250, 50),
             ),
           ),
         ],
@@ -253,28 +253,30 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.all(16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _CompactButton(
+              OutlinedButton.icon(
                 onPressed: () => setState(() => _imagePath = null),
-                icon: Icons.refresh,
-                label: 'RIFAI',
+                icon: const Icon(Icons.refresh),
+                label: const Text('RIFAI FOTO'),
               ),
-              _CompactButton(
+              OutlinedButton.icon(
                 onPressed: () => _pickImage(source: ImageSource.gallery),
-                icon: Icons.photo_library,
-                label: 'GALLERIA',
+                icon: const Icon(Icons.photo_library),
+                label: const Text('GALLERIA'),
               ),
-              _CompactButton(
+              FilledButton.icon(
                 onPressed: _isImageValid()
                     ? () => _processImage(_imagePath!)
                     : null,
-                icon: Icons.send,
-                label: 'ELABORA',
-                isFilled: true,
-                enabled: _isImageValid(),
+                style: FilledButton.styleFrom(
+                  backgroundColor:
+                      _isImageValid() ? null : Colors.grey,
+                ),
+                icon: const Icon(Icons.send),
+                label: const Text('ELABORA'),
               ),
             ],
           ),
@@ -295,60 +297,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
      );
    }
 
-Widget _placeholder() => const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.camera_alt, size: 64, color: Colors.grey),
-              SizedBox(height: 12),
-              Text(
-                'Scatta o seleziona uno scontrino',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-        );
-}
-
-class _CompactButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final IconData icon;
-  final String label;
-  final bool isFilled;
-  final bool enabled;
-
-  const _CompactButton({
-    required this.onPressed,
-    required this.icon,
-    required this.label,
-    this.isFilled = false,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (isFilled) {
-      return FilledButton.icon(
-        onPressed: enabled ? onPressed : null,
-        icon: Icon(icon, size: 16),
-        label: Text(label, style: const TextStyle(fontSize: 12)),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          minimumSize: const Size(0, 36),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      );
-    }
-
-    return OutlinedButton.icon(
-      onPressed: enabled ? onPressed : null,
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        minimumSize: const Size(0, 36),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-    );
-  }
+   Widget _placeholder() => const Center(
+         child: Column(
+           mainAxisAlignment: MainAxisAlignment.center,
+           children: [
+             Icon(Icons.camera_alt, size: 64, color: Colors.grey),
+             SizedBox(height: 12),
+             Text(
+               'Scatta o seleziona uno scontrino',
+               style: TextStyle(color: Colors.grey),
+             ),
+           ],
+         ),
+       );
 }
