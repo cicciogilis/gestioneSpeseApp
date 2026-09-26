@@ -72,7 +72,7 @@ class ReceiptDraftsScreen extends ConsumerWidget {
             icon: const Icon(Icons.camera_alt),
             label: const Text('SCANSIONA SCONTRINO'),
             style: ElevatedButton.styleFrom(
-              minimumSize: const Size.fromHeight(50),
+              fixedSize: const Size(250, 50),
             ),
           ),
         ],

@@ -17,17 +17,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   static const List<({String title, String subtitle, IconData icon})> _pages = [
     (
       title: 'Benvenuto in SpesApp!',
-      subtitle: 'Il tuo gestionale personale di spese ed entrate, semplicità e controllo.',
+      subtitle: 'Gestisci spese, entrate e risparmi in modo semplice e ordinato',
       icon: Icons.account_balance_wallet,
     ),
     (
-      title: 'Scansiona gli scontrini',
-      subtitle: 'Inquadra lo scontrino: l\'app estrae i dati con OCR e AI per inserirli in un attimo.',
+      title: 'Niente più inserimenti manuali',
+      subtitle: 'Scansiona uno scontrino e lascia che l’AI inserisca automaticamente i dati.',
       icon: Icons.document_scanner,
     ),
     (
-      title: 'Budget e dati locali',
-      subtitle: 'Definisci il tuo tetto di spesa e conserva i dati sul dispositivo.',
+      title: 'Il tuo budget, sempre con te',
+      subtitle: 'Definisci il tuo tetto di spesa,i tuoi obiettivi di risaparmio, e conserva i dati sul dispositivo.',
       icon: Icons.savings,
     ),
   ];

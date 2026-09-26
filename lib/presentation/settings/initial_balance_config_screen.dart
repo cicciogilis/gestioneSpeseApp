@@ -283,7 +283,12 @@ class _InitialBalanceConfigScreenState
                       style: TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Inserisci manualmente il saldo iniziale per il mese selezionato',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
                     Form(
                       key: _formKey,
                       child: TextFormField(

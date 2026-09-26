@@ -38,40 +38,63 @@ class ExportService {
       buffer.writeln('Report SpesApp - ${months.map((m) => _monthShortLabel(year, m)).join(', ')}');
     }
     buffer.writeln();
-    buffer.writeln('Data;Tipo;Categoria;Metodo;Importo;Descrizione');
-    for (final tx in transactions) {
-      buffer.write(tx.date.toIso8601String().split('T').first);
-      buffer.write(';');
-      buffer.write(tx.type == TransactionType.income ? 'Entrata' : 'Uscita');
-      buffer.write(';');
-      buffer.write(categoryDisplayName(tx.categoryId));
-      buffer.write(';');
-      buffer.write(tx.method.name);
-      buffer.write(';');
-      buffer.write(tx.amount.toStringAsFixed(2).replaceAll('.', ','));
-      buffer.write(';');
-      buffer.write((tx.description ?? '').replaceAll(';', ','));
+    
+    for (final month in months) {
+      final monthTransactions = transactions
+          .where((tx) => tx.date.year == year && tx.date.month == month)
+          .toList();
+      
+      if (monthTransactions.isEmpty) continue;
+      
+      buffer.writeln('--- ${_monthYearLabel(year, month)} ---');
+      buffer.writeln('Data;Tipo;Categoria;Metodo;Importo;Descrizione');
+      
+      for (final tx in monthTransactions) {
+        buffer.write(tx.date.toIso8601String().split('T').first);
+        buffer.write(';');
+        buffer.write(tx.type == TransactionType.income ? 'Entrata' : 'Uscita');
+        buffer.write(';');
+        buffer.write(categoryDisplayName(tx.categoryId));
+        buffer.write(';');
+        buffer.write(tx.method.name);
+        buffer.write(';');
+        buffer.write(tx.amount.toStringAsFixed(2).replaceAll('.', ','));
+        buffer.write(';');
+        buffer.write((tx.description ?? '').replaceAll(';', ','));
+        buffer.writeln();
+      }
+      
+      double totalUscite = 0.0;
+      double totalEntrate = 0.0;
+      for (final tx in monthTransactions) {
+        if (tx.type == TransactionType.expense) {
+          totalUscite += tx.amount;
+        } else if (tx.type == TransactionType.income) {
+          totalEntrate += tx.amount;
+        }
+      }
+      
+      // Saldo iniziale per questo mese
+      double meseSaldoIniziale = 0.0;
+      // Trova la transazione di saldo iniziale per questo mese
+      for (final tx in monthTransactions) {
+        if (tx.isInitialBalance) {
+          meseSaldoIniziale = tx.amount;
+          break;
+        }
+      }
+      
+      final saldoNetto = meseSaldoIniziale + totalEntrate - totalUscite;
+      final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
+      
+      buffer.writeln();
+      buffer.writeln('Saldo Iniziale;${fmt.format(meseSaldoIniziale)}');
+      buffer.writeln('Totale Entrate;${fmt.format(totalEntrate)}');
+      buffer.writeln('Totale Uscite;${fmt.format(-totalUscite)}');
+      buffer.writeln('Saldo Netto;${fmt.format(saldoNetto)}');
       buffer.writeln();
     }
-
-    double totalUscite = 0.0;
-    double totalEntrate = 0.0;
-    for (final tx in transactions) {
-      if (tx.type == TransactionType.expense) {
-        totalUscite += tx.amount;
-      } else if (tx.type == TransactionType.income) {
-        totalEntrate += tx.amount;
-      }
-    }
-    final saldoNetto = saldoIniziale + totalEntrate - totalUscite;
-    final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
-
-    buffer.writeln();
-    buffer.writeln('Saldo Iniziale;${fmt.format(saldoIniziale)}');
-    buffer.writeln('Totale Uscite;${fmt.format(-totalUscite)}');
-    buffer.writeln('Totale Entrate;${fmt.format(totalEntrate)}');
-    buffer.writeln('Saldo Netto;${fmt.format(saldoNetto)}');
-
+    
     return buffer.toString();
   }
 
@@ -84,26 +107,29 @@ class ExportService {
     final document = pw.Document();
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
 
-    // Calculate totals across all months
-    double totalUscite = 0.0;
-    double totalEntrate = 0.0;
-    for (final tx in transactions) {
-      if (tx.type == TransactionType.expense) {
-        totalUscite += tx.amount;
-      } else if (tx.type == TransactionType.income) {
-        totalEntrate += tx.amount;
-      }
-    }
-    final saldoNetto = saldoIniziale + totalEntrate - totalUscite;
-    final bg = saldoNetto >= 0 ? PdfColors.green200 : PdfColors.red200;
-
-    // Add a page for each month
     for (final month in months) {
       final monthTransactions = transactions
           .where((tx) => tx.date.year == year && tx.date.month == month)
           .toList();
 
       if (monthTransactions.isEmpty) continue;
+
+      // Calcola totali per questo mese
+      double totalUscite = 0.0;
+      double totalEntrate = 0.0;
+      double meseSaldoIniziale = 0.0;
+      for (final tx in monthTransactions) {
+        if (tx.type == TransactionType.expense) {
+          totalUscite += tx.amount;
+        } else if (tx.type == TransactionType.income) {
+          totalEntrate += tx.amount;
+        }
+        if (tx.isInitialBalance) {
+          meseSaldoIniziale = tx.amount;
+        }
+      }
+      final saldoNetto = meseSaldoIniziale + totalEntrate - totalUscite;
+      final bg = saldoNetto >= 0 ? PdfColors.green200 : PdfColors.red200;
 
       document.addPage(
         pw.MultiPage(
@@ -130,7 +156,7 @@ class ExportService {
             pw.SizedBox(height: 20),
             pw.Align(
               alignment: pw.Alignment.centerRight,
-              child: _pdfSummary(monthTransactions, saldoIniziale, fmt),
+              child: _pdfSummary(meseSaldoIniziale, totalEntrate, totalUscite, saldoNetto, fmt, bg),
             ),
           ],
         ),
@@ -150,39 +176,50 @@ class ExportService {
           ),
           build: (context) => [
             pw.TableHelper.fromTextArray(
-              headers: const ['Mese', 'Entrate', 'Uscite', 'Saldo'],
+              headers: const ['Mese', 'Saldo Iniziale', 'Entrate', 'Uscite', 'Saldo Netto'],
               data: months.map((month) {
                 final monthTx = transactions
                     .where((tx) => tx.date.year == year && tx.date.month == month)
                     .toList();
-                double mEntrate = 0, mUscite = 0;
+                double mEntrate = 0, mUscite = 0, mSaldoIniziale = 0;
                 for (final tx in monthTx) {
                   if (tx.type == TransactionType.income) mEntrate += tx.amount;
                   if (tx.type == TransactionType.expense) mUscite += tx.amount;
+                  if (tx.isInitialBalance) mSaldoIniziale = tx.amount;
                 }
                 return [
                   _monthShortLabel(year, month),
+                  fmt.format(mSaldoIniziale),
                   fmt.format(mEntrate),
                   fmt.format(-mUscite),
-                  fmt.format(mEntrate - mUscite),
+                  fmt.format(mSaldoIniziale + mEntrate - mUscite),
                 ];
               }).toList(),
             ),
             pw.SizedBox(height: 20),
             pw.Align(
               alignment: pw.Alignment.centerRight,
-              child: pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                decoration: pw.BoxDecoration(color: bg, borderRadius: pw.BorderRadius.circular(8)),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _summaryRow('Saldo Iniziale', fmt.format(saldoIniziale)),
-                    _summaryRow('Totale Uscite', fmt.format(-totalUscite)),
-                    _summaryRow('Totale Entrate', fmt.format(totalEntrate)),
-                    _summaryRow('Saldo Netto', fmt.format(saldoNetto)),
-                  ],
-                ),
+              child: _pdfSummary(
+                months.fold<double>(0.0, (sum, m) {
+                  final mTx = transactions.where((tx) => tx.date.year == year && tx.date.month == m).toList();
+                  double s = 0;
+                  for (final tx in mTx) {
+                    if (tx.isSystemInitialBalance) s = tx.amount;
+                  }
+                  return sum + s;
+                }),
+                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year && tx.type == TransactionType.income).fold(0.0, (sum, tx) => sum + tx.amount),
+                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year && tx.type == TransactionType.expense).fold(0.0, (sum, tx) => sum + tx.amount),
+                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year).fold<double>(0.0, (sum, tx) => sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount)) + months.fold<double>(0.0, (sum, m) {
+                  final mTx = transactions.where((tx) => tx.date.year == year && tx.date.month == m).toList();
+                  double s = 0;
+                  for (final tx in mTx) {
+                    if (tx.isSystemInitialBalance) s = tx.amount;
+                  }
+                  return sum + s;
+                }),
+                fmt,
+                PdfColors.grey200,
               ),
             ),
           ],
@@ -194,22 +231,13 @@ class ExportService {
   }
 
   pw.Widget _pdfSummary(
-    List<AppTransaction> transactions,
     double saldoIniziale,
+    double totalEntrate,
+    double totalUscite,
+    double saldoNetto,
     NumberFormat fmt,
+    PdfColor bg,
   ) {
-    double totalUscite = 0.0;
-    double totalEntrate = 0.0;
-    for (final tx in transactions) {
-      if (tx.type == TransactionType.expense) {
-        totalUscite += tx.amount;
-      } else if (tx.type == TransactionType.income) {
-        totalEntrate += tx.amount;
-      }
-    }
-    final saldoNetto = saldoIniziale + totalEntrate - totalUscite;
-    final bg = saldoNetto >= 0 ? PdfColors.green200 : PdfColors.red200;
-
     return pw.Container(
       padding: const pw.EdgeInsets.all(8),
       decoration: pw.BoxDecoration(color: bg, borderRadius: pw.BorderRadius.circular(8)),
@@ -217,8 +245,8 @@ class ExportService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           _summaryRow('Saldo Iniziale', fmt.format(saldoIniziale)),
-          _summaryRow('Totale Uscite', fmt.format(-totalUscite)),
           _summaryRow('Totale Entrate', fmt.format(totalEntrate)),
+          _summaryRow('Totale Uscite', fmt.format(-totalUscite)),
           _summaryRow('Saldo Netto', fmt.format(saldoNetto)),
         ],
       ),

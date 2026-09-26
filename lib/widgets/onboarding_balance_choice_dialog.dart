@@ -23,22 +23,22 @@ class OnboardingBalanceChoiceDialog extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'Come vuoi iniziare? Scegli una delle due opzioni:',
+            'Come vuoi iniziare?\nScegli una delle due opzioni:',
             style: TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 24),
           _ChoiceCard(
             icon: Icons.account_balance_wallet,
             iconColor: Colors.blue,
-            title: 'Saldo iniziale mese',
-            subtitle: 'Imposta il saldo di partenza del mese corrente.\nNon verrà creata alcuna transazione.',
+            title: 'Saldo al primo del mese',
+            subtitle: 'Imposta il saldo di partenza del mese corrente.\nNon verrà creata nessuna transazione.',
             onTap: () => _showInputSheet(context, ref, OnboardingBalanceChoice.initialBalance),
           ),
           const SizedBox(height: 16),
           _ChoiceCard(
             icon: Icons.account_balance,
             iconColor: Colors.green,
-            title: 'Saldo iniziale al giorno corrente',
+            title: 'Saldo iniziale ad oggi',
             subtitle: 'Verrà inserita una voce di saldo iniziale nella lista transazioni del mese corrente',
             onTap: () => _showInputSheet(context, ref, OnboardingBalanceChoice.currentBalance),
           ),
@@ -195,7 +195,12 @@ class _InitialBalanceInputSheetState extends ConsumerState<_InitialBalanceInputS
           baselineAmount: amount,
         ),
       );
-      await repo.recalcCascadeFrom(now.year, now.month);
+
+      // Ricalcola a cascata i mesi SUCCESSIVI (non tocca il mese appena salvato)
+      // Allineato al flusso delle Impostazioni
+      final nextMonth = now.month == 12 ? 1 : now.month + 1;
+      final nextYear = now.month == 12 ? now.year + 1 : now.year;
+      await repo.recalcCascadeFrom(nextYear, nextMonth);
 
       // 2. If "Saldo corrente", create special transaction
       if (widget.choice == OnboardingBalanceChoice.currentBalance) {
@@ -203,7 +208,7 @@ class _InitialBalanceInputSheetState extends ConsumerState<_InitialBalanceInputS
         await txRepo.addTransaction(
           AppTransaction(
             amount: amount,
-            type: TransactionType.income,
+            type: TransactionType.initialBalance,
             categoryId: 'cat_saldo_iniziale',
             method: MetodoPagamento.contanti,
             date: now,
@@ -251,13 +256,13 @@ class _InitialBalanceInputSheetState extends ConsumerState<_InitialBalanceInputS
   @override
   Widget build(BuildContext context) {
     final isCurrentBalance = widget.choice == OnboardingBalanceChoice.currentBalance;
-    final title = isCurrentBalance ? 'Inserisci Saldo Iniziale al giorno corrente' : 'Inserisci Saldo Iniziale Mese';
+    final title = isCurrentBalance ? 'Inserisci Saldo di oggi' : 'Inserisci Saldo al primo del mese';
     final subtitle = isCurrentBalance
         ? 'Verrà inserita una voce di saldo iniziale nella lista transazioni del mese corrente'
         : '';
     final hint = isCurrentBalance
-        ? 'Es: 1500,00 (verrà creata transazione "Saldo Iniziale")'
-        : 'Es: 1500,00 (solo saldo di partenza, nessuna transazione)';
+        ? 'verrà creata transazione "Saldo Iniziale"'
+        : 'solo saldo di partenza, nessuna transazione';
 
     return Padding(
       padding: EdgeInsets.only(

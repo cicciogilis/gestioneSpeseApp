@@ -102,7 +102,7 @@ return ListView.builder(
             itemCount: filtered.length,
             itemBuilder: (context, index) {
               final tx = filtered[index];
-              final isInitialBalance = tx.isInitialBalance;
+              final isSystemInitialBalance = tx.isSystemInitialBalance;
 
               Widget tileContent = ListTile(
                 leading: CircleAvatar(
@@ -146,7 +146,7 @@ return ListView.builder(
                             color: Colors.grey,
                           ),
                         ),
-                        if (isInitialBalance) ...[
+                        if (isSystemInitialBalance) ...[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -198,7 +198,7 @@ return ListView.builder(
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (tx.recurrence.isRecurring && tx.ricorrenzaId != null && !isInitialBalance)
+                    if (tx.recurrence.isRecurring && tx.ricorrenzaId != null && !isSystemInitialBalance)
                       IconButton(
                         icon: const Icon(
                           Icons.settings,
@@ -220,7 +220,7 @@ return ListView.builder(
                     ),
                   ],
                 ),
-                onTap: isInitialBalance
+                onTap: isSystemInitialBalance
                       ? null
                       : () => context.push('/add', extra: {
                           'amount': tx.amount,
@@ -232,7 +232,7 @@ return ListView.builder(
                         }),
               );
 
-              if (isInitialBalance) {
+              if (isSystemInitialBalance) {
                 return tileContent;
               }
 

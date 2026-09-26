@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AppMigrationService {
   static const String _versionKey = 'app_schema_version';
-  static const int _currentVersion = 2; // Incrementa questo a ogni cambiamento schema
+  static const int _currentVersion = 3; // Incrementa questo a ogni cambiamento schema
 
   static Future<void> runMigrationsIfNeeded() async {
     final prefs = await SharedPreferences.getInstance();
@@ -27,6 +27,9 @@ class AppMigrationService {
         break;
       case 2:
         await _migrationV2AddMonthBalanceSchema(prefs);
+        break;
+      case 3:
+        await _migrationV3UpdateTransactionTypeInitialBalance(prefs);
         break;
       // Aggiungi qui future migrazioni
     }
@@ -70,6 +73,35 @@ class AppMigrationService {
     // Le chiavi sono tipo: month_balances_YYYY_MM
     // Non serve migrazione se già usa il formato corretto
     // Questo placeholder serve per future migrazioni
+  }
+
+  /// v3: Aggiorna le transazioni "Saldo iniziale" esistenti al nuovo tipo TransactionType.initialBalance
+  static Future<void> _migrationV3UpdateTransactionTypeInitialBalance(
+    SharedPreferences prefs,
+  ) async {
+    const transactionsKey = 'local_transactions';
+    final encoded = prefs.getStringList(transactionsKey);
+    if (encoded == null) return;
+
+    final List<String> migrated = [];
+    for (final item in encoded) {
+      try {
+        final map = Map<String, dynamic>.from(jsonDecode(item));
+        // Se la transazione è un saldo iniziale (description="Saldo iniziale" + categoryId="cat_saldo_iniziale")
+        // aggiorna il type a "INITIAL_BALANCE"
+        final desc = map['description'] as String?;
+        final catId = map['category_id'] as String?;
+        final isInitial = desc == 'Saldo iniziale' && catId == 'cat_saldo_iniziale';
+        if (isInitial) {
+          map['type'] = 'INITIAL_BALANCE';
+        }
+        migrated.add(jsonEncode(map));
+      } catch (_) {
+        migrated.add(item);
+      }
+    }
+
+    await prefs.setStringList(transactionsKey, migrated);
   }
 
   /// Utility: forza re-esecuzione migrazioni (per testing)

@@ -181,7 +181,7 @@ class _PeriodSelectorBottomSheetState extends ConsumerState<PeriodSelectorBottom
                         if (!_yearConfirmed) ...[
                           const SizedBox(width: 8),
                           Text(
-                            '(seleziona prima un anno)',
+                            '',
                             style: theme.textTheme.bodySmall
                                 ?.copyWith(color: Colors.grey),
                           ),
@@ -240,7 +240,7 @@ class _PeriodSelectorBottomSheetState extends ConsumerState<PeriodSelectorBottom
               ),
               child: Text(
                 _yearConfirmed
-                    ? 'Conferma — ${_monthLabels[_selectedMonth - 1]} $_selectedYear'
+                    ? 'Conferma | ${_monthLabels[_selectedMonth - 1]} $_selectedYear'
                     : 'Seleziona un anno per continuare',
               ),
             ),

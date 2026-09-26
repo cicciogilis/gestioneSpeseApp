@@ -136,7 +136,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     controller: _limitCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
-                      labelText: 'Tetto massimo spese al mese (€)',
+                      labelText: 'Tetto massimo spese al mese',
                       prefixText: '€ ',
                       border: OutlineInputBorder(),
                     ),
@@ -148,7 +148,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     controller: _goalCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
-                      labelText: 'Obiettivo risparmio al mese (€)',
+                      labelText: 'Obiettivo risparmio al mese',
                       prefixText: '€ ',
                       border: OutlineInputBorder(),
                     ),

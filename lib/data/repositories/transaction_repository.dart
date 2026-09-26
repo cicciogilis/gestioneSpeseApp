@@ -327,6 +327,17 @@ class TransactionRepository {
   Future<void> deleteTransaction(String id) async {
     final prefs = await SharedPreferences.getInstance();
     final transactions = await _loadTransactions(prefs);
+    
+    // Prevent deletion of system initial balance transactions
+    final txToDelete = transactions.firstWhere(
+      (tx) => tx.id == id,
+      orElse: () => throw Exception('Transazione non trovata'),
+    );
+    
+    if (txToDelete.isSystemInitialBalance) {
+      throw Exception('Non è possibile eliminare il saldo iniziale di sistema');
+    }
+    
     final filtered = transactions.where((tx) => tx.id != id).toList();
     await _saveTransactions(prefs, filtered);
   }

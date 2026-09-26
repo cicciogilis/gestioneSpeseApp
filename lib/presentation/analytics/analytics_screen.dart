@@ -63,14 +63,14 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     double totalIncome = 0.0;
     double totalExpense = 0.0;
     for (var t in transactions) {
-      if (t.isInitialBalance) continue; // Exclude initial balance transaction
+      if (t.isSystemInitialBalance) continue;
       if (t.type == TransactionType.income) totalIncome += t.amount;
       if (t.type == TransactionType.expense) totalExpense += t.amount;
     }
 
     final expensesByCategory = <String, double>{};
     for (final t in transactions) {
-      if (t.isInitialBalance) continue; // Exclude initial balance transaction
+      if (t.isSystemInitialBalance) continue;
       if (t.type != TransactionType.expense) continue;
       expensesByCategory.update(
         t.categoryId,
@@ -84,7 +84,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final monthlyBalance = <String, double>{};
     final monthlyData = <String>[];
     for (final t in allTransactions) {
-      if (t.isInitialBalance) continue; // Exclude initial balance transaction
+      if (t.isSystemInitialBalance) continue;
       final monthKey = DateFormat('yyyy-MM').format(t.date);
       if (t.type == TransactionType.expense) {
         monthlyExpensesByCategory
@@ -362,7 +362,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             ],
           ),
         const SizedBox(height: 24),
-        const Text('Trend Saldo',
+        const Text('Trend Saldo Annuale',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         if (monthlyData.isEmpty)

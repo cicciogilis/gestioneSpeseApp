@@ -8,6 +8,7 @@ import '../../core/providers/selected_period_provider.dart';
 import '../../widgets/period_selector_bottom_sheet.dart';
 import '../../widgets/transaction_card.dart';
 import '../../widgets/saving_goal_bar.dart';
+import '../../widgets/budget_goal_bar.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -70,7 +71,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         children: [
           _buildBalanceCard(homeData, fmt),
           const SizedBox(height: 24),
-          _buildUnifiedBudgetSavingsCard(homeData, budget, fmt),
+          _buildUnifiedBudgetSavingsCard(homeData, budget, fmt, context),
           const SizedBox(height: 24),
           const Text(
             'ULTIME TRANSAZIONI',
@@ -165,70 +166,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildUnifiedBudgetSavingsCard(
-      HomeData homeData, BudgetSettings budget, NumberFormat fmt) {
+      HomeData homeData, BudgetSettings budget, NumberFormat fmt, BuildContext context) {
     final budgetPct =
         (homeData.uscite / budget.globalLimit).clamp(0.0, 1.0);
 
     return Card(
-      color: const Color(0xFF1E1E2C),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Sezione 1 — Budget Mensile
-            _buildBudgetBar(
-              budgetPct,
-              homeData.uscite,
-              budget.globalLimit,
-              fmt,
+            // Sezione 1 — Budget Mensile (stesso layout di Obiettivo Risparmio)
+            BudgetGoalBar(
+              pct: budgetPct,
+              speso: homeData.uscite,
+              tetto: budget.globalLimit,
+              fmt: fmt,
             ),
 
-            const Divider(color: Colors.grey, height: 32, thickness: 0.5),
+            const Divider(height: 32, thickness: 0.5),
 
             // Sezione 2 — Obiettivo di Risparmio
             const SavingGoalBar(),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildBudgetBar(
-      double pct, double current, double limit, NumberFormat fmt) {
-    const Color budgetColor = Color(0xFFF44336); // ROSSO
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        LinearProgressIndicator(
-          value: pct,
-          minHeight: 12,
-          backgroundColor: Colors.grey.shade800,
-          valueColor: const AlwaysStoppedAnimation<Color>(budgetColor),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Budget di spesa',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, color: budgetColor),
-            ),
-            Text(
-              '${fmt.format(current)} / ${fmt.format(limit)}',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: budgetColor,
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

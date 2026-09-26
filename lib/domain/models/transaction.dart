@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum TransactionType { income, expense }
+enum TransactionType { income, expense, initialBalance }
 
 enum MetodoPagamento { contanti, carta, bonifico, paypal, satispay }
 
@@ -82,6 +82,11 @@ class AppTransaction {
     this.ricorrenzaId,
     this.isInitialBalance = false,
   });
+
+  /// Returns true if this is a system-generated initial balance transaction
+  /// that cannot be deleted or modified by the user
+  bool get isSystemInitialBalance => 
+      type == TransactionType.initialBalance || isInitialBalance;
 
   Map<String, dynamic> toMap() {
     return {
