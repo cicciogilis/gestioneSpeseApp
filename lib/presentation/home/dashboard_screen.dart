@@ -70,15 +70,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         children: [
           _buildBalanceCard(homeData, fmt),
           const SizedBox(height: 24),
-          const Text(
-            'BUDGET MENSILE',
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
-          ),
-          const SizedBox(height: 8),
-          _buildBudgetMonthlyCard(homeData, budget, fmt),
-          const SizedBox(height: 24),
-          const SavingGoalBar(),
+          _buildUnifiedBudgetSavingsCard(homeData, budget, fmt),
           const SizedBox(height: 24),
           const Text(
             'ULTIME TRANSAZIONI',
@@ -172,25 +164,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildBudgetMonthlyCard(
+  Widget _buildUnifiedBudgetSavingsCard(
       HomeData homeData, BudgetSettings budget, NumberFormat fmt) {
     final budgetPct =
         (homeData.uscite / budget.globalLimit).clamp(0.0, 1.0);
 
     return Card(
-      elevation: 2,
+      color: const Color(0xFF1E1E2C),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Sezione 1 — Budget Mensile
             _buildBudgetBar(
               budgetPct,
               homeData.uscite,
               budget.globalLimit,
               fmt,
             ),
+
+            const Divider(color: Colors.grey, height: 32, thickness: 0.5),
+
+            // Sezione 2 — Obiettivo di Risparmio
+            const SavingGoalBar(),
           ],
         ),
       ),
@@ -207,7 +205,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         LinearProgressIndicator(
           value: pct,
           minHeight: 12,
-          backgroundColor: Colors.grey.shade200,
+          backgroundColor: Colors.grey.shade800,
           valueColor: const AlwaysStoppedAnimation<Color>(budgetColor),
           borderRadius: BorderRadius.circular(6),
         ),

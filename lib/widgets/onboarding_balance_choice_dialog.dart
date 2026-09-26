@@ -38,8 +38,8 @@ class OnboardingBalanceChoiceDialog extends ConsumerWidget {
           _ChoiceCard(
             icon: Icons.account_balance,
             iconColor: Colors.green,
-            title: 'Saldo corrente',
-            subtitle: 'Imposta il saldo corrente.\nVerrà creata una transazione "Saldo Iniziale" visibile in lista ma non conteggiata nei totali.',
+            title: 'Saldo iniziale al giorno corrente',
+            subtitle: 'Verrà inserita una voce di saldo iniziale nella lista transazioni del mese corrente',
             onTap: () => _showInputSheet(context, ref, OnboardingBalanceChoice.currentBalance),
           ),
         ],
@@ -251,7 +251,10 @@ class _InitialBalanceInputSheetState extends ConsumerState<_InitialBalanceInputS
   @override
   Widget build(BuildContext context) {
     final isCurrentBalance = widget.choice == OnboardingBalanceChoice.currentBalance;
-    final title = isCurrentBalance ? 'Inserisci Saldo Corrente' : 'Inserisci Saldo Iniziale Mese';
+    final title = isCurrentBalance ? 'Inserisci Saldo Iniziale al giorno corrente' : 'Inserisci Saldo Iniziale Mese';
+    final subtitle = isCurrentBalance
+        ? 'Verrà inserita una voce di saldo iniziale nella lista transazioni del mese corrente'
+        : '';
     final hint = isCurrentBalance
         ? 'Es: 1500,00 (verrà creata transazione "Saldo Iniziale")'
         : 'Es: 1500,00 (solo saldo di partenza, nessuna transazione)';
@@ -273,6 +276,13 @@ class _InitialBalanceInputSheetState extends ConsumerState<_InitialBalanceInputS
               title,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               hint,

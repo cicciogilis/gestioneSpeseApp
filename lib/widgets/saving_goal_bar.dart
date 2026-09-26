@@ -26,6 +26,10 @@ class SavingGoalBar extends ConsumerWidget {
           return _buildNoEntrateState();
         }
 
+        if (!data.isConfigured) {
+          return _buildNotConfiguredState();
+        }
+
         return _buildProgressBar(data);
       },
     );
@@ -35,9 +39,9 @@ class SavingGoalBar extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: Colors.grey.shade900,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Colors.grey.shade800),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,7 +51,7 @@ class SavingGoalBar extends ConsumerWidget {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 8),
@@ -56,7 +60,7 @@ class SavingGoalBar extends ConsumerWidget {
             child: Container(
               height: 20,
               width: double.infinity,
-              color: Colors.grey.shade300,
+              color: Colors.grey.shade800,
             ),
           ),
           const SizedBox(height: 8),
@@ -64,7 +68,39 @@ class SavingGoalBar extends ConsumerWidget {
             'Nessuna entrata registrata questo mese',
             style: TextStyle(
               fontSize: 13,
-              color: Colors.grey.shade600,
+              color: Colors.grey.shade400,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotConfiguredState() {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade800),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Obiettivo di risparmio',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Obiettivo non configurato. Vai in Impostazioni → Budget per impostarlo.',
+            style: TextStyle(
+              color: Colors.grey.shade400,
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -74,20 +110,14 @@ class SavingGoalBar extends ConsumerWidget {
   }
 
   Widget _buildProgressBar(SavingGoalData data) {
-    final percentuale = (data.ratio * 100).toStringAsFixed(0);
+    final percentuale = (data.percentuale * 100).toStringAsFixed(0);
 
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.grey.shade900,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.grey.shade800),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,7 +130,7 @@ class SavingGoalBar extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: Colors.white,
                 ),
               ),
               Text(
@@ -108,9 +138,9 @@ class SavingGoalBar extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: data.ratio > 0.3
+                  color: data.percentuale > 0.3
                       ? const Color(0xFF4CAF50)
-                      : data.ratio > 0.1
+                      : data.percentuale > 0.1
                           ? Colors.orange
                           : Colors.red,
                 ),
@@ -121,50 +151,23 @@ class SavingGoalBar extends ConsumerWidget {
 
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Stack(
-              children: [
-                Container(
-                  height: 20,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                FractionallySizedBox(
-                  widthFactor: data.ratio,
-                  child: Container(
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
+            child: LinearProgressIndicator(
+              value: data.percentuale,
+              minHeight: 20,
+              backgroundColor: Colors.grey.shade800,
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
           const SizedBox(height: 10),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Risparmiato: €${data.risparmioCorrente.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF4CAF50),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                'Speso: €${data.totaleUscite.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
+          Text(
+            'Risparmiato: €${data.risparmiato.toStringAsFixed(2)} / €${data.obiettivoRisparmioMese.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF4CAF50),
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),

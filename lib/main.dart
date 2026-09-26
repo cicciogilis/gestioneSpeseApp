@@ -7,6 +7,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories/month_balance_repository.dart';
 import 'data/repositories/transaction_repository.dart';
+import 'data/services/migration_service.dart';
 import 'data/services/temp_file_service.dart';
 import 'widgets/initial_balance_dialog.dart';
 
@@ -17,6 +18,9 @@ void main() async {
   await initializeDateFormatting('it_IT');
 
   await TempFileService().cleanupTempFiles();
+
+  // Esegui migrazioni schema se necessario (persistenza dati tra aggiornamenti)
+  await AppMigrationService.runMigrationsIfNeeded();
 
   await TransactionRepository().processaRicorrenzePendenti();
 

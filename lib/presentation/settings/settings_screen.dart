@@ -43,7 +43,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await notifier.setGlobalLimit(double.tryParse(_limitCtrl.text.replaceAll(',', '.')) ?? fallback);
     await notifier.setSavingGoal(double.tryParse(_goalCtrl.text.replaceAll(',', '.')) ?? defaultSavingGoal);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Budget salvato')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Budget e obiettivo di risparmio salvati')));
     }
   }
 
@@ -53,44 +53,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return balance?.baselineAmount ?? 0.0;
   }
 
-  Future<void> _startExport(String format) async {
-    final result = await showDialog<_ExportSelection>(
-      context: context,
-      barrierDismissible: false,
-       builder: (ctx) => _ExportSelectionDialog(),
-    );
-
-    if (result == null) return;
-
-    final confirmedYear = result.year;
-    final confirmedMonth = result.month;
-
+  Future<void> _startExport(String format, int year, List<int> months) async {
     final transactions = ref.read(transactionsProvider).maybeWhen(
           data: (list) => list
               .where((tx) =>
-                  tx.date.year == confirmedYear &&
-                  tx.date.month == confirmedMonth)
+                  tx.date.year == year &&
+                  months.contains(tx.date.month))
               .toList(),
           orElse: () => const <AppTransaction>[],
         );
 
-    final saldoIniziale =
-        await _getSaldoIniziale(confirmedYear, confirmedMonth);
+    final saldoIniziale = await _getSaldoIniziale(year, months.first);
 
     setState(() => _isExporting = true);
     try {
       if (format == 'csv') {
         await _exportService.exportCsv(
           transactions,
-          year: confirmedYear,
-          month: confirmedMonth,
+          year: year,
+          months: months,
           saldoIniziale: saldoIniziale,
         );
       } else {
         await _exportService.exportPdf(
           transactions,
-          year: confirmedYear,
-          month: confirmedMonth,
+          year: year,
+          months: months,
           saldoIniziale: saldoIniziale,
         );
       }
@@ -106,11 +94,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _exportCsv() async {
-    await _startExport('csv');
+    final result = await showDialog<_ExportSelection>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _ExportSelectionDialog(),
+    );
+
+    if (result != null) {
+      await _startExport('csv', result.year, result.months);
+    }
   }
 
   Future<void> _exportPdf() async {
-    await _startExport('pdf');
+    final result = await showDialog<_ExportSelection>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _ExportSelectionDialog(),
+    );
+
+    if (result != null) {
+      await _startExport('pdf', result.year, result.months);
+    }
   }
 
   @override
@@ -216,21 +220,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     );
                   },
                 ),
-            ],
-          ),
+              ],
+            ),
     );
   }
 }
 
+enum ExportMode { single, allYear, multiMonth }
+
 class _ExportSelection {
   final int year;
-  final int month;
+  final List<int> months;
 
-  const _ExportSelection({required this.year, required this.month});
+  const _ExportSelection({required this.year, required this.months});
 }
 
 class _ExportSelectionDialog extends StatefulWidget {
-
   @override
   State<_ExportSelectionDialog> createState() => _ExportSelectionDialogState();
 }
@@ -238,7 +243,9 @@ class _ExportSelectionDialog extends StatefulWidget {
 class _ExportSelectionDialogState extends State<_ExportSelectionDialog> {
   final now = DateTime.now();
   late int _selectedYear;
-  late int _selectedMonth;
+  ExportMode _exportMode = ExportMode.single;
+  int _selectedMonth = DateTime.now().month;
+  final Set<int> _selectedMonths = {};
 
   @override
   void initState() {
@@ -247,59 +254,142 @@ class _ExportSelectionDialogState extends State<_ExportSelectionDialog> {
     _selectedMonth = now.month;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    const monthLabels = [
+  String _monthName(int month) {
+    const names = [
+      'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
+      'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic',
+    ];
+    return names[month - 1];
+  }
+
+  String _monthFullName(int month) {
+    const names = [
       'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
       'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
     ];
+    return names[month - 1];
+  }
 
+  List<int> _getExportMonths() {
+    switch (_exportMode) {
+      case ExportMode.single:
+        return [_selectedMonth];
+      case ExportMode.allYear:
+        return List.generate(12, (i) => i + 1);
+      case ExportMode.multiMonth:
+        final months = _selectedMonths.toList()..sort();
+        return months;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final yearItems = List.generate(11, (i) => now.year - 5 + i);
 
-    final monthItems = List.generate(12, (i) => i + 1);
-
     return AlertDialog(
-      title: const Text('Seleziona periodo'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-           DropdownButtonFormField<int>(
-             initialValue: _selectedYear,
-             decoration: const InputDecoration(
-               labelText: 'Anno',
-               border: OutlineInputBorder(),
-             ),
-             items: yearItems
-                 .map((y) => DropdownMenuItem(value: y, child: Text(y.toString())))
-                 .toList(),
-             onChanged: (int? val) {
-               if (val != null) {
-                 setState(() {
-                   _selectedYear = val;
-                 });
-               }
-             },
-           ),
-           const SizedBox(height: 16),
-           DropdownButtonFormField<int>(
-             initialValue: _selectedMonth,
-             decoration: const InputDecoration(
-               labelText: 'Mese',
-               border: OutlineInputBorder(),
-             ),
-             items: monthItems
-                 .map((m) => DropdownMenuItem(
-                       value: m,
-                       child: Text(monthLabels[m - 1]),
-                     ))
-                 .toList(),
-             onChanged: (int? val) {
-               if (val != null) {
-                 setState(() => _selectedMonth = val);
-               }
-             },
-           ),
-         ],
+      title: const Text('Seleziona periodo per export'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<int>(
+              initialValue: _selectedYear,
+              decoration: const InputDecoration(
+                labelText: 'Anno',
+                border: OutlineInputBorder(),
+              ),
+              items: yearItems
+                  .map((y) => DropdownMenuItem(value: y, child: Text(y.toString())))
+                  .toList(),
+              onChanged: (int? val) {
+                if (val != null) {
+                  setState(() {
+                    _selectedYear = val;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Opzione 1: Singolo mese
+            if (_exportMode == ExportMode.single)
+              DropdownButtonFormField<int>(
+                initialValue: _selectedMonth,
+                decoration: const InputDecoration(
+                  labelText: 'Mese',
+                  border: OutlineInputBorder(),
+                ),
+                items: List.generate(12, (i) => i + 1)
+                    .map((m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(_monthFullName(m)),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedMonth = v!),
+              ),
+
+            const SizedBox(height: 12),
+
+            // Opzione 2: Esporta tutto l'anno
+            CheckboxListTile(
+              title: const Text('Esporta tutto l\'anno selezionato'),
+              value: _exportMode == ExportMode.allYear,
+              onChanged: (checked) {
+                setState(() {
+                  _exportMode = checked == true ? ExportMode.allYear : ExportMode.single;
+                  if (_exportMode == ExportMode.allYear) {
+                    _selectedMonths.clear();
+                    _selectedMonths.addAll(List.generate(12, (i) => i + 1));
+                  }
+                });
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+
+            // Opzione 3: Seleziona alcuni mesi
+            CheckboxListTile(
+              title: const Text('Seleziona alcuni mesi'),
+              value: _exportMode == ExportMode.multiMonth,
+              onChanged: (checked) {
+                setState(() {
+                  _exportMode = checked == true ? ExportMode.multiMonth : ExportMode.single;
+                  if (_exportMode == ExportMode.multiMonth) {
+                    _selectedMonths.clear();
+                  }
+                });
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+
+            // Griglia mesi (visibile solo in multiMonth)
+            if (_exportMode == ExportMode.multiMonth) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(12, (i) {
+                  final month = i + 1;
+                  return FilterChip(
+                    label: Text(_monthName(month)),
+                    selected: _selectedMonths.contains(month),
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedMonths.add(month);
+                        } else {
+                          _selectedMonths.remove(month);
+                        }
+                      });
+                    },
+                  );
+                }),
+              ),
+            ],
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -307,12 +397,12 @@ class _ExportSelectionDialogState extends State<_ExportSelectionDialog> {
           child: const Text('Annulla'),
         ),
         FilledButton(
-          onPressed: _selectedMonth >= 1 && _selectedMonth <= 12
-              ? () => Navigator.pop(
+          onPressed: _getExportMonths().isEmpty
+              ? null
+              : () => Navigator.pop(
                   context,
-                  _ExportSelection(year: _selectedYear, month: _selectedMonth),
-                )
-              : null,
+                  _ExportSelection(year: _selectedYear, months: _getExportMonths()),
+                ),
           child: const Text('Esporta'),
         ),
       ],

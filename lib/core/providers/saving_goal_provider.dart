@@ -1,48 +1,62 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_providers.dart';
+import 'budget_provider.dart';
 
 class SavingGoalData {
-  final double totaleEntrate;
-  final double totaleUscite;
-  final double risparmioCorrente;
-  final double ratio;
+  final double risparmiato;
+  final double obiettivoRisparmioMese;
+  final double percentuale;
+  final bool isConfigured;
   final bool hasEntrate;
 
   const SavingGoalData({
-    required this.totaleEntrate,
-    required this.totaleUscite,
-    required this.risparmioCorrente,
-    required this.ratio,
+    required this.risparmiato,
+    required this.obiettivoRisparmioMese,
+    required this.percentuale,
+    required this.isConfigured,
     required this.hasEntrate,
   });
 }
 
 final savingGoalProvider = Provider<AsyncValue<SavingGoalData>>((ref) {
   final homeDataAsync = ref.watch(homeDataProvider);
+  final budgetAsync = ref.watch(budgetProvider);
 
   return homeDataAsync.when(
     data: (homeData) {
+      final budget = budgetAsync;
       final double entrate = homeData.entrate;
       final double uscite = homeData.uscite;
+      final double risparmiato = entrate - uscite;
+      final double obiettivoRisparmioMese = budget.savingGoal;
 
       if (entrate <= 0) {
         return AsyncValue.data(SavingGoalData(
-          totaleEntrate: 0,
-          totaleUscite: uscite,
-          risparmioCorrente: 0,
-          ratio: 0.0,
+          risparmiato: 0,
+          obiettivoRisparmioMese: obiettivoRisparmioMese,
+          percentuale: 0.0,
+          isConfigured: obiettivoRisparmioMese > 0,
           hasEntrate: false,
         ));
       }
 
-      final double risparmio = entrate - uscite;
-      final double ratio = (risparmio / entrate).clamp(0.0, 1.0);
+      if (obiettivoRisparmioMese <= 0) {
+        return AsyncValue.data(SavingGoalData(
+          risparmiato: risparmiato < 0 ? 0 : risparmiato,
+          obiettivoRisparmioMese: obiettivoRisparmioMese,
+          percentuale: 0.0,
+          isConfigured: false,
+          hasEntrate: true,
+        ));
+      }
+
+      final double percentuale = (risparmiato / obiettivoRisparmioMese).clamp(0.0, 1.0);
 
       return AsyncValue.data(SavingGoalData(
-        totaleEntrate: entrate,
-        totaleUscite: uscite,
-        risparmioCorrente: risparmio < 0 ? 0 : risparmio,
-        ratio: ratio,
+        risparmiato: risparmiato < 0 ? 0 : risparmiato,
+        obiettivoRisparmioMese: obiettivoRisparmioMese,
+        percentuale: percentuale,
+        isConfigured: true,
         hasEntrate: true,
       ));
     },
