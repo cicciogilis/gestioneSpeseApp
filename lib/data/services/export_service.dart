@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -5,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../domain/models/transaction.dart';
@@ -24,11 +26,25 @@ class ExportService {
     return '${names[month - 1]} $year';
   }
 
+  // Legge il saldo iniziale dal repository (stessa fonte di Home/Analytics)
+  Future<double> _getSaldoIniziale(int year, int month) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'month_balances_${year}_$month';
+    final jsonStr = prefs.getString(key);
+    if (jsonStr == null || jsonStr.isEmpty) return 0.0;
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(jsonStr));
+      return (map['baselineAmount'] as num?)?.toDouble() ?? 0.0;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
   String _csvOf(
     List<AppTransaction> transactions,
     int year,
     List<int> months,
-    double saldoIniziale,
+    Map<int, double> saldiIniziali,
   ) {
     final buffer = StringBuffer();
     
@@ -44,12 +60,21 @@ class ExportService {
           .where((tx) => tx.date.year == year && tx.date.month == month)
           .toList();
       
-      if (monthTransactions.isEmpty) continue;
+      // Filtra le transazioni di sistema (saldo iniziale) per l'elenco transazioni
+      final displayTransactions = monthTransactions
+          .where((tx) => !tx.isSystemInitialBalance)
+          .toList();
+      
+      if (displayTransactions.isEmpty && monthTransactions.every((tx) => tx.isSystemInitialBalance)) {
+        // Se ci sono solo transazioni di sistema, mostra solo il riepilogo
+      } else if (displayTransactions.isEmpty) {
+        continue;
+      }
       
       buffer.writeln('--- ${_monthYearLabel(year, month)} ---');
       buffer.writeln('Data;Tipo;Categoria;Metodo;Importo;Descrizione');
       
-      for (final tx in monthTransactions) {
+      for (final tx in displayTransactions) {
         buffer.write(tx.date.toIso8601String().split('T').first);
         buffer.write(';');
         buffer.write(tx.type == TransactionType.income ? 'Entrata' : 'Uscita');
@@ -58,7 +83,8 @@ class ExportService {
         buffer.write(';');
         buffer.write(tx.method.name);
         buffer.write(';');
-        buffer.write(tx.amount.toStringAsFixed(2).replaceAll('.', ','));
+        // Formato euro corretto: €1.234,56
+        buffer.write('€${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}');
         buffer.write(';');
         buffer.write((tx.description ?? '').replaceAll(';', ','));
         buffer.writeln();
@@ -66,7 +92,7 @@ class ExportService {
       
       double totalUscite = 0.0;
       double totalEntrate = 0.0;
-      for (final tx in monthTransactions) {
+      for (final tx in displayTransactions) {
         if (tx.type == TransactionType.expense) {
           totalUscite += tx.amount;
         } else if (tx.type == TransactionType.income) {
@@ -74,15 +100,8 @@ class ExportService {
         }
       }
       
-      // Saldo iniziale per questo mese
-      double meseSaldoIniziale = 0.0;
-      // Trova la transazione di saldo iniziale per questo mese
-      for (final tx in monthTransactions) {
-        if (tx.isInitialBalance) {
-          meseSaldoIniziale = tx.amount;
-          break;
-        }
-      }
+      // Saldo iniziale per questo mese (dal repository, stesso di Home/Analytics)
+      final meseSaldoIniziale = saldiIniziali[month] ?? 0.0;
       
       final saldoNetto = meseSaldoIniziale + totalEntrate - totalUscite;
       final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
@@ -102,7 +121,7 @@ class ExportService {
     List<AppTransaction> transactions,
     int year,
     List<int> months,
-    double saldoIniziale,
+    Map<int, double> saldiIniziali,
   ) async {
     final document = pw.Document();
     final fmt = NumberFormat.simpleCurrency(locale: 'it_IT');
@@ -112,22 +131,30 @@ class ExportService {
           .where((tx) => tx.date.year == year && tx.date.month == month)
           .toList();
 
-      if (monthTransactions.isEmpty) continue;
+      // Filtra le transazioni di sistema (saldo iniziale) per l'elenco transazioni
+      final displayTransactions = monthTransactions
+          .where((tx) => !tx.isSystemInitialBalance)
+          .toList();
 
-      // Calcola totali per questo mese
+      if (displayTransactions.isEmpty && monthTransactions.every((tx) => tx.isSystemInitialBalance)) {
+        // Se ci sono solo transazioni di sistema, mostra solo il riepilogo
+      } else if (displayTransactions.isEmpty) {
+        continue;
+      }
+
+      // Calcola totali per questo mese (solo transazioni non di sistema)
       double totalUscite = 0.0;
       double totalEntrate = 0.0;
-      double meseSaldoIniziale = 0.0;
-      for (final tx in monthTransactions) {
+      for (final tx in displayTransactions) {
         if (tx.type == TransactionType.expense) {
           totalUscite += tx.amount;
         } else if (tx.type == TransactionType.income) {
           totalEntrate += tx.amount;
         }
-        if (tx.isInitialBalance) {
-          meseSaldoIniziale = tx.amount;
-        }
       }
+      
+      // Saldo iniziale per questo mese (dal repository, stesso di Home/Analytics)
+      final meseSaldoIniziale = saldiIniziali[month] ?? 0.0;
       final saldoNetto = meseSaldoIniziale + totalEntrate - totalUscite;
       final bg = saldoNetto >= 0 ? PdfColors.green200 : PdfColors.red200;
 
@@ -143,12 +170,12 @@ class ExportService {
           build: (context) => [
             pw.TableHelper.fromTextArray(
               headers: const ['Data', 'Tipo', 'Categoria', 'Importo', 'Descrizione'],
-              data: monthTransactions
+              data: displayTransactions
                   .map((tx) => [
                         tx.date.toIso8601String().split('T').first,
                         tx.type == TransactionType.income ? 'Entrata' : 'Uscita',
                         categoryDisplayName(tx.categoryId),
-                        '${tx.amount.toStringAsFixed(2)} EUR',
+                        '€${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}',
                         tx.description ?? '',
                       ])
                   .toList(),
@@ -181,12 +208,13 @@ class ExportService {
                 final monthTx = transactions
                     .where((tx) => tx.date.year == year && tx.date.month == month)
                     .toList();
-                double mEntrate = 0, mUscite = 0, mSaldoIniziale = 0;
+                double mEntrate = 0, mUscite = 0;
                 for (final tx in monthTx) {
+                  if (tx.isSystemInitialBalance) continue;
                   if (tx.type == TransactionType.income) mEntrate += tx.amount;
                   if (tx.type == TransactionType.expense) mUscite += tx.amount;
-                  if (tx.isInitialBalance) mSaldoIniziale = tx.amount;
                 }
+                final mSaldoIniziale = saldiIniziali[month] ?? 0.0;
                 return [
                   _monthShortLabel(year, month),
                   fmt.format(mSaldoIniziale),
@@ -200,24 +228,10 @@ class ExportService {
             pw.Align(
               alignment: pw.Alignment.centerRight,
               child: _pdfSummary(
-                months.fold<double>(0.0, (sum, m) {
-                  final mTx = transactions.where((tx) => tx.date.year == year && tx.date.month == m).toList();
-                  double s = 0;
-                  for (final tx in mTx) {
-                    if (tx.isSystemInitialBalance) s = tx.amount;
-                  }
-                  return sum + s;
-                }),
-                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year && tx.type == TransactionType.income).fold(0.0, (sum, tx) => sum + tx.amount),
-                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year && tx.type == TransactionType.expense).fold(0.0, (sum, tx) => sum + tx.amount),
-                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year).fold<double>(0.0, (sum, tx) => sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount)) + months.fold<double>(0.0, (sum, m) {
-                  final mTx = transactions.where((tx) => tx.date.year == year && tx.date.month == m).toList();
-                  double s = 0;
-                  for (final tx in mTx) {
-                    if (tx.isSystemInitialBalance) s = tx.amount;
-                  }
-                  return sum + s;
-                }),
+                months.fold<double>(0.0, (sum, m) => sum + (saldiIniziali[m] ?? 0.0)),
+                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year && tx.type == TransactionType.income && !tx.isSystemInitialBalance).fold(0.0, (sum, tx) => sum + tx.amount),
+                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year && tx.type == TransactionType.expense && !tx.isSystemInitialBalance).fold(0.0, (sum, tx) => sum + tx.amount),
+                transactions.where((tx) => months.contains(tx.date.month) && tx.date.year == year && !tx.isSystemInitialBalance).fold<double>(0.0, (sum, tx) => sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount)) + months.fold<double>(0.0, (sum, m) => sum + (saldiIniziali[m] ?? 0.0)),
                 fmt,
                 PdfColors.grey200,
               ),
@@ -276,7 +290,14 @@ class ExportService {
   }) async {
     final y = year ?? DateTime.now().year;
     final m = months ?? [DateTime.now().month];
-    final csv = _csvOf(transactions, y, m, saldoIniziale);
+    
+    // Carica saldi iniziali dal repository per ogni mese
+    final saldiIniziali = <int, double>{};
+    for (final month in m) {
+      saldiIniziali[month] = await _getSaldoIniziale(y, month);
+    }
+    
+    final csv = _csvOf(transactions, y, m, saldiIniziali);
     final file = await _writeTempFile(
       'spesapp_report_${DateTime.now().millisecondsSinceEpoch}.csv',
       Uint8List.fromList(csv.codeUnits),
@@ -297,7 +318,14 @@ class ExportService {
   }) async {
     final y = year ?? DateTime.now().year;
     final m = months ?? [DateTime.now().month];
-    final bytes = await _pdfBytesOf(transactions, y, m, saldoIniziale);
+    
+    // Carica saldi iniziali dal repository per ogni mese
+    final saldiIniziali = <int, double>{};
+    for (final month in m) {
+      saldiIniziali[month] = await _getSaldoIniziale(y, month);
+    }
+    
+    final bytes = await _pdfBytesOf(transactions, y, m, saldiIniziali);
     final file = await _writeTempFile(
       'spesapp_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
       bytes,

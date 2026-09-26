@@ -262,11 +262,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 icon: const Icon(Icons.refresh),
                 label: const Text('RIFAI FOTO'),
               ),
-              OutlinedButton.icon(
-                onPressed: () => _pickImage(source: ImageSource.gallery),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('GALLERIA'),
-              ),
               FilledButton.icon(
                 onPressed: _isImageValid()
                     ? () => _processImage(_imagePath!)

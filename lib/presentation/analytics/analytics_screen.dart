@@ -7,6 +7,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/providers/month_balance_provider.dart';
 import '../../core/providers/selected_period_provider.dart';
 import '../../domain/models/transaction.dart';
+import '../../domain/models/category.dart';
 import '../../utils/category_utils.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
@@ -17,6 +18,9 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 }
 
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
+  // Categorie escluse dal grafico a torta (solo per vista corrente, reset all'uscita)
+  final Set<String> _excludedCategoryIds = {};
+
   @override
   Widget build(BuildContext context) {
     final asyncValue = ref.watch(transactionsProvider);
@@ -48,6 +52,100 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return Color(cat.color);
   }
 
+  void _showExcludedCategoriesSheet() {
+    final expenseCategories = seedCategories
+        .where((c) => c.type == CategoryType.expense && c.id != 'cat_saldo_iniziale')
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Categorie escluse',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Seleziona le categorie da escludere dal grafico a torta',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: expenseCategories.map((cat) {
+                    final isExcluded = _excludedCategoryIds.contains(cat.id);
+                    return ChoiceChip(
+                      label: Text(cat.name),
+                      selected: isExcluded,
+                      onSelected: (val) {
+                        setSheetState(() {
+                          if (val) {
+                            _excludedCategoryIds.add(cat.id);
+                          } else {
+                            _excludedCategoryIds.remove(cat.id);
+                          }
+                        });
+                        setState(() {}); // Aggiorna il grafico
+                      },
+                      avatar: Icon(Icons.category, color: Color(cat.color), size: 18),
+                      selectedColor: Color(cat.color).withValues(alpha: 0.3),
+                      labelStyle: TextStyle(
+                        color: isExcluded ? Color(cat.color) : null,
+                        fontWeight: isExcluded ? FontWeight.w600 : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const Divider(height: 32),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        setSheetState(() {
+                          _excludedCategoryIds.clear();
+                        });
+                        setState(() {});
+                      },
+                      child: const Text('Azzera'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Applica'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildAnalytics(
       BuildContext context, List<AppTransaction> allTransactions, double saldoIniziale) {
     final selectedPeriod = ref.watch(selectedPeriodProvider);
@@ -72,6 +170,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     for (final t in transactions) {
       if (t.isSystemInitialBalance) continue;
       if (t.type != TransactionType.expense) continue;
+      // Escludi le categorie escluse dall'utente
+      if (_excludedCategoryIds.contains(t.categoryId)) continue;
       expensesByCategory.update(
         t.categoryId,
         (v) => v + t.amount,
@@ -87,14 +187,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       if (t.isSystemInitialBalance) continue;
       final monthKey = DateFormat('yyyy-MM').format(t.date);
       if (t.type == TransactionType.expense) {
-        monthlyExpensesByCategory
-            .putIfAbsent(monthKey, () => <String, double>{})
-            .update(t.categoryId, (v) => v + t.amount, ifAbsent: () => t.amount);
-        monthlyBalance.update(
-          monthKey,
-          (v) => v - t.amount,
-          ifAbsent: () => -t.amount,
-        );
+        // Anche qui escludiamo le categorie escluse per coerenza nei trend
+        if (!_excludedCategoryIds.contains(t.categoryId)) {
+          monthlyExpensesByCategory
+              .putIfAbsent(monthKey, () => <String, double>{})
+              .update(t.categoryId, (v) => v + t.amount, ifAbsent: () => t.amount);
+          monthlyBalance.update(
+            monthKey,
+            (v) => v - t.amount,
+            ifAbsent: () => -t.amount,
+          );
+        }
       } else if (t.type == TransactionType.income) {
         monthlyBalance.update(
           monthKey,
@@ -184,9 +287,19 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        const Text('Spese per Categoria',
-            style:
-                TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Spese per Categoria',
+                style:
+                    TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            IconButton(
+              icon: const Icon(Icons.filter_list),
+              tooltip: 'Categorie escluse',
+              onPressed: _showExcludedCategoriesSheet,
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
         if (pieSections.isEmpty)
           Container(

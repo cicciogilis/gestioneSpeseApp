@@ -220,16 +220,7 @@ return ListView.builder(
                     ),
                   ],
                 ),
-                onTap: isSystemInitialBalance
-                      ? null
-                      : () => context.push('/add', extra: {
-                          'amount': tx.amount,
-                          'date': tx.date.toIso8601String().split('T').first,
-                          'category': tx.categoryId,
-                          'title': transactionTitle(tx.description, tx.categoryId),
-                          'method': tx.method.name,
-                          'description': tx.description,
-                        }),
+                onTap: null,
               );
 
               if (isSystemInitialBalance) {
@@ -564,7 +555,7 @@ class TransactionSearchDelegate extends SearchDelegate<AppTransaction?> {
         final tx = results[index];
         return TransactionCard(
           transaction: tx,
-          onTap: () => close(context, tx),
+          onTap: null,
         );
       },
     );
@@ -609,10 +600,7 @@ class TransactionSearchDelegate extends SearchDelegate<AppTransaction?> {
         final tx = suggestions[index];
         return TransactionCard(
           transaction: tx,
-          onTap: () {
-            query = transactionTitle(tx.description, tx.categoryId);
-            showResults(context);
-          },
+          onTap: null,
         );
       },
     );

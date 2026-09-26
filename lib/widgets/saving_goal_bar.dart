@@ -135,14 +135,10 @@ class SavingGoalBar extends ConsumerWidget {
               ),
               Text(
                 '$percentuale%',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: data.percentuale > 0.3
-                      ? const Color(0xFF4CAF50)
-                      : data.percentuale > 0.1
-                          ? Colors.orange
-                          : Colors.red,
+                  color: Color(0xFF4CAF50),
                 ),
               ),
             ],
